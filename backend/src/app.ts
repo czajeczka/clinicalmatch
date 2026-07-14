@@ -18,6 +18,14 @@ import { notificationsRouter } from './routes/notifications.js'
 /**
  * Builds the Express application (no `listen` — so tests can import it).
  * Feature routers are mounted here as later chunks add them.
+ *
+ * Deferred building blocks reuse this same REST API rather than duplicating it,
+ * and are intentionally NOT implemented in these chunks:
+ *   TODO: MCP (later seminar) — an MCP server exposing search/get/save as tools.
+ *   TODO: autonomous agent (later seminar) — a Telegram agent reusing the tools.
+ *   TODO: RAG (later seminar) — grounded "ask about this trial".
+ *   TODO: n8n workflow (later seminar) — see the POST /notifications log target.
+ *   TODO: LLM API (seminar 6) — the four AI features (kept mocked on the client).
  */
 export function createApp() {
   const app = express()

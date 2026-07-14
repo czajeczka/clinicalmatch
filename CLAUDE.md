@@ -128,13 +128,44 @@ details and the "how to add an endpoint" recipe live in `backend/CLAUDE.md`.
 - Types: `npm run typecheck` · Lint: `npm run lint` (oxlint) · Format: `npm run format`
 - DB (from chunk 3): `npm run migrate` · `npm run seed`
 
-**Frontend** (`cd frontend`) — scaffolded; runs on mock data (`src/mock/`).
+**Frontend** (`cd frontend`) — calls the backend for non-AI data; AI mocked.
 - Install: `npm install`
 - Dev: `npm run dev` (vite, http://localhost:5173)
 - Build: `npm run build` (tsc + vite; generates the PWA service worker) · Preview: `npm run preview`
 - Test: `npm test` (vitest) · Watch: `npm run test:watch`
 - Types: `npm run typecheck` · Lint: `npm run lint` (oxlint) · Format: `npm run format` (prettier)
 - Stack: React 19 + TS, Vite 8, Tailwind v4, react-router 7, vite-plugin-pwa.
+
+**Run the full app together**
+1. `cd backend && npm run seed && npm run dev` (API on `:3001`).
+2. In `frontend/`: set `VITE_API_URL=http://localhost:3001` in `.env`, then
+   `npm run dev` (`:5173`). Onboard, then browse/save/join/post end to end.
+3. The backend Supertest e2e (`backend/src/e2e.test.ts`) covers the same
+   non-AI golden path headlessly.
+
+## Acceptance status (against the brief)
+Done vs. deferred as of the current chunks (12/12):
+
+**Done (built + tested):**
+- **PWA / mobile-first** — installable PWA; app shell precached by the service
+  worker. _(Full offline caching of API data is a documented follow-up.)_
+- **Discovery & data** — browse, search, disease filter, trial detail, and
+  save/un-save persisted via the backend.
+- **Community** — join/leave, create discussion, reply, edit/delete own posts;
+  ownership enforced server-side.
+- **Home** — matching trials + notifications from the API.
+- **Safety framing** — every AI surface carries the informational-only note;
+  "unlikely" verdict is neutral grey, never red.
+- **Backend** — full non-AI REST API (users, trials, saved, groups,
+  memberships, discussions, replies, notifications), 47 tests + an e2e flow.
+
+**Deferred (each has its own later seminar — intentionally not built):**
+- **LLM smart features** (self-check, plain-language criteria, trial summary,
+  post enhancement) → seminar 6. Currently mocked on the client with
+  `TODO: LLM API (seminar 6)`, keeping the informational-only framing.
+- **RAG** ("Ask about this trial"), **MCP server**, **n8n email workflow**,
+  **autonomous agent** → their own seminars. Marked with `TODO: … (seminar)`
+  where they touch the app (e.g. `backend/src/app.ts`, `POST /notifications`).
 
 ## Definition of done
 A change is done when:
@@ -143,5 +174,5 @@ A change is done when:
 - The app runs (relevant flow verified, not just unit tests).
 - Any AI surface it touches shows the informational-only framing and degrades
   gracefully on failure.
-- `CLAUDE.md` and this file's Commands section are updated if the workflow or
-  tooling changed.
+- The relevant `CLAUDE.md` (root, `frontend/`, `backend/`) is updated if the
+  workflow, structure, an endpoint, or a feature changed.

@@ -46,6 +46,11 @@ Env: copy `.env.example` → `.env`. Vars: `PORT` (3001), `CORS_ORIGIN`
 (`http://localhost:5173`), `NODE_ENV`, and `DB_PATH`
 (default `data/clinicalmatch.sqlite`). Never commit `.env` or the `.sqlite` file.
 
+Tests: per-route Supertest suites plus `src/e2e.test.ts`, a chained golden-path
+flow (create user → save → join → post → reply → edit/delete, with ownership
+and error-shape assertions). Tests run against an in-memory DB (see
+`vitest.config.ts`).
+
 ## API structure & conventions
 
 - **App wiring:** `src/config.ts` (Zod-validated env), `src/app.ts` (builds the
