@@ -38,13 +38,13 @@ npm run test:watch
 npm run typecheck    # tsc --noEmit  (typechecks tests too)
 npm run lint         # oxlint
 npm run format       # prettier --write .
-npm run migrate      # (from chunk 3) apply schema.sql
-npm run seed         # (from chunk 3) load the fictional catalogue
+npm run migrate      # apply schema.sql (idempotent)
+npm run seed         # load the fictional catalogue (idempotent, re-runnable)
 ```
 
 Env: copy `.env.example` → `.env`. Vars: `PORT` (3001), `CORS_ORIGIN`
-(`http://localhost:5173`), `NODE_ENV`, and `DB_PATH` (from chunk 3). Never
-commit `.env`.
+(`http://localhost:5173`), `NODE_ENV`, and `DB_PATH`
+(default `data/clinicalmatch.sqlite`). Never commit `.env` or the `.sqlite` file.
 
 ## API structure & conventions
 
@@ -68,24 +68,35 @@ commit `.env`.
   interests) as JSON strings; the db serialise helper (chunk 3) parses them back
   to arrays so responses match the frontend types exactly.
 
-## Database schema (planned — finalise in chunk 3)
+## Database schema
 
-SQLite tables (JSON-heavy fields stored as TEXT holding JSON):
+SQLite (`better-sqlite3`, WAL). The DDL lives in `src/db/schema.sql`;
+`src/db/index.ts` opens the DB (singleton `db`, or `openDatabase(path)` for
+tests / `:memory:`); `src/db/migrate.ts` applies the schema idempotently;
+`src/db/seed.ts` (+ `seed-data.ts`) loads the fictional catalogue. Array/object
+fields are stored as **TEXT holding JSON**; `src/db/serialise.ts` maps rows back
+to the typed objects in `src/types.ts` (parses `inclusion_criteria`,
+`exclusion_criteria`, `centers`, `tags`, `interests`).
+
+Tables (JSON-in-TEXT fields marked `[]`):
 
 - `trials` (id, title, disease, phase, city, country, status,
   short_description, full_description, inclusion_criteria[], exclusion_criteria[],
-  centers[], contact_*)
+  centers[], contact_name, contact_email, contact_phone)
 - `support_groups` (id, name, disease, description, color, member_count)
 - `users` (id, display_name, age?, city?, interests[], created_at)
 - `discussions` (id, group_id, author_id, author_name, title?, content, tags[],
-  summary?, created_at) — `reply_count` derived
+  summary?, created_at) — **`reply_count` is derived** (COUNT of replies), not a
+  column
 - `replies` (id, discussion_id, author_id, author_name, content, created_at)
 - `saved_trials` (id, user_id, trial_id, created_at) — UNIQUE(user_id, trial_id)
 - `group_memberships` (id, user_id, group_id, created_at) — UNIQUE(user_id, group_id)
-- `notifications` (id, title, body, trial_id?, created_at, read)
+- `notifications` (id, title, body, trial_id?, created_at, read 0|1)
 
-No `protocol_chunks`/embeddings table — that belongs to the deferred RAG seminar.
-_(Update this section with the exact DDL once chunk 3 lands.)_
+Seeded IDs match the frontend (`t-001…`, `g-bc…`, `d-001…`, `r-001…`) so the
+frontend connects seamlessly. `npm run seed` is idempotent (clears + reinserts
+the seeded content tables; leaves user data alone). No `protocol_chunks` /
+embeddings table — that belongs to the deferred RAG seminar.
 
 ## How to add an endpoint
 

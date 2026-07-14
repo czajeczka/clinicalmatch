@@ -9,6 +9,7 @@ const schema = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
     .default('development'),
+  DB_PATH: z.string().default('data/clinicalmatch.sqlite'),
 })
 
 export const config = schema.parse(process.env)
