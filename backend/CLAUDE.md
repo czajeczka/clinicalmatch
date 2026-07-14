@@ -132,5 +132,11 @@ embeddings table — that belongs to the deferred RAG seminar.
     (`routes/trials.query.ts`) so it's unit-testable; JSON columns come back as
     arrays via the serialise helper.
   - `GET /trials/:id` — one `Trial`, or 404 `{ error: 'Trial not found' }`.
-- _Saved trials, groups, memberships, discussions, replies, notifications —
-  added in chunks 6–10; document each here as it lands._
+- **Saved trials** _(chunk 6)_ — all require `x-user-id` (`requireUser`).
+  - `GET /saved-trials` — the user's saved trials as full `Trial[]`, newest first.
+  - `POST /saved-trials` — `{ trial_id }`. 404 if the trial is unknown;
+    idempotent (unique on user_id+trial_id): 201 on first save, 200 with the
+    existing record otherwise.
+  - `DELETE /saved-trials/:trialId` — un-save; always 204 (idempotent).
+- _Groups, memberships, discussions, replies, notifications — added in
+  chunks 7–10; document each here as it lands._
