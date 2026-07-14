@@ -138,5 +138,16 @@ embeddings table — that belongs to the deferred RAG seminar.
     idempotent (unique on user_id+trial_id): 201 on first save, 200 with the
     existing record otherwise.
   - `DELETE /saved-trials/:trialId` — un-save; always 204 (idempotent).
-- _Groups, memberships, discussions, replies, notifications — added in
-  chunks 7–10; document each here as it lands._
+- **Groups** _(chunk 7)_ — public.
+  - `GET /groups` — `SupportGroup[]` (5 seeded).
+  - `GET /groups/:id` — one group, or 404 `{ error: 'Group not found' }`.
+  - `member_count` is **live**: the seeded base column (a realistic starting
+    number, never mutated) **plus** `COUNT(group_memberships)` for that group.
+    Joining raises it, leaving lowers it.
+- **Memberships** _(chunk 7)_ — all require `x-user-id` (`requireUser`).
+  - `GET /memberships` — the user's joined groups as full `SupportGroup[]`.
+  - `POST /memberships` — `{ group_id }`. 404 if unknown; idempotent (unique
+    user_id+group_id): 201 first join, 200 if already joined.
+  - `DELETE /memberships/:groupId` — leave; always 204 (idempotent).
+- _Discussions, replies, notifications — added in chunks 8–10; document each
+  here as it lands._

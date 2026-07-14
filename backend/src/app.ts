@@ -9,6 +9,8 @@ import { identity } from './middleware/identity.js'
 import { usersRouter } from './routes/users.js'
 import { trialsRouter } from './routes/trials.js'
 import { savedRouter } from './routes/saved.js'
+import { groupsRouter } from './routes/groups.js'
+import { membershipsRouter } from './routes/memberships.js'
 
 /**
  * Builds the Express application (no `listen` — so tests can import it).
@@ -29,6 +31,8 @@ export function createApp() {
   app.use('/users', usersRouter)
   app.use('/trials', trialsRouter)
   app.use('/saved-trials', savedRouter)
+  app.use('/groups', groupsRouter)
+  app.use('/memberships', membershipsRouter)
 
   // 404 for anything unmatched.
   app.use((_req: Request, res: Response) => {
