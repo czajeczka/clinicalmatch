@@ -7,6 +7,7 @@ import cors from 'cors'
 import { config } from './config.js'
 import { identity } from './middleware/identity.js'
 import { usersRouter } from './routes/users.js'
+import { trialsRouter } from './routes/trials.js'
 
 /**
  * Builds the Express application (no `listen` — so tests can import it).
@@ -25,6 +26,7 @@ export function createApp() {
 
   // Feature routers.
   app.use('/users', usersRouter)
+  app.use('/trials', trialsRouter)
 
   // 404 for anything unmatched.
   app.use((_req: Request, res: Response) => {

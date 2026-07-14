@@ -125,5 +125,12 @@ embeddings table — that belongs to the deferred RAG seminar.
     if unknown.
   - `GET /users?interest=<Disease>` — users following a disease (no `interest`
     → all users; unknown disease → 400). Backs a future n8n step.
-- _Trials, saved trials, groups, memberships, discussions, replies,
-  notifications — added in chunks 5–10; document each here as it lands._
+- **Trials** _(chunk 5)_ — public (no identity).
+  - `GET /trials?query=&disease=` — `Trial[]`. `query` matches (case-insensitive,
+    trimmed) title/short_description/city/disease; `disease` filters to one of
+    the five (missing/`all`/unknown → all). Filtering is a pure helper
+    (`routes/trials.query.ts`) so it's unit-testable; JSON columns come back as
+    arrays via the serialise helper.
+  - `GET /trials/:id` — one `Trial`, or 404 `{ error: 'Trial not found' }`.
+- _Saved trials, groups, memberships, discussions, replies, notifications —
+  added in chunks 6–10; document each here as it lands._
