@@ -1,0 +1,11 @@
+node_modules
+dist
+*.log
+
+# secrets
+.env
+
+# SQLite database (added in a later chunk)
+data/
+*.sqlite
+*.sqlite-*
