@@ -17,30 +17,47 @@ email workflow on an Express + SQLite backend. **Everything AI is informational
 only — never medical advice; final eligibility is always the trial
 investigators' call**, and that framing must appear on every AI surface.
 
+## Status & scope
+Two-app monorepo:
+- **`frontend/`** — built and running on **mock data** (`src/mock/`). Every
+  backend call is marked `TODO: connect to API`. See `frontend/CLAUDE.md`.
+- **`backend/`** — Express + TypeScript + SQLite. Base server is up (chunk 1);
+  feature endpoints are added chunk by chunk (see `assignment/chunk_*.md`). See
+  `backend/CLAUDE.md`.
+
+**Deferred building blocks — do NOT build these early** (each gets its own later
+seminar; building now just means redoing it):
+- **AI / LLM smart features** (eligibility self-check, plain-language criteria,
+  trial summary, discussion-post enhancement) → **seminar 6**.
+- **RAG** (grounded "Ask about this trial"), **MCP server**, **n8n workflow**,
+  **autonomous agent** → their own later seminars.
+
+Where a deferred feature surfaces in the UI, keep its placeholder/mock and a
+`TODO: <topic> (its seminar)` note — e.g. `TODO: LLM API (seminar 6)`,
+`TODO: RAG (later seminar)`. Ordinary third-party integrations (email, maps,
+etc.) are in scope and built normally.
+
 ## Tech stack
-**Frontend**
-- React 18 + TypeScript, built with Vite.
-- TailwindCSS for styling; PWA via `vite-plugin-pwa` (installable, offline).
-- Fonts: Fraunces (headings), Inter (body), IBM Plex Mono (labels/data).
+**Frontend** (as built)
+- React 19 + TypeScript, built with Vite 8.
+- TailwindCSS v4 (tokens in `src/index.css`); PWA via `vite-plugin-pwa`.
+- react-router 7. Fonts: Fraunces (headings), Inter (body), IBM Plex Mono.
 
-**Backend**
-- Node.js (v24, installed) + TypeScript, Express server.
-- SQLite via `better-sqlite3` (single file, synchronous).
-- Claude API (`@anthropic-ai/sdk`) — one model for all four AI features, strict
-  JSON validated server-side. Default model `claude-sonnet-5` **(assumption —
-  confirm exact id)**.
-- RAG: `@xenova/transformers` (all-MiniLM) local embeddings + an in-memory
-  cosine-similarity index behind a `VectorStore` interface.
-- MCP: `@modelcontextprotocol/sdk` (stdio transport).
-- Agent: Telegraf (Telegram), reusing the MCP tools + RAG.
+**Backend** (as built / planned)
+- Node.js v24 + TypeScript (ESM, NodeNext), **Express 5**.
+- SQLite via `better-sqlite3` (single file, synchronous) — added in chunk 3.
+- **Zod** for request validation.
+- _Deferred (later seminars — not built in the current chunks):_ Claude API
+  (`@anthropic-ai/sdk`) for the four AI features; RAG via `@xenova/transformers`
+  + an in-memory `VectorStore`; MCP (`@modelcontextprotocol/sdk`, stdio); a
+  Telegraf agent. Exact Claude model id is still an **(assumption)**.
 
-**Shared tooling** (both apps, **assumption** unless noted)
-- Package manager: **npm** (Node 24 / npm 11 already installed).
-- Test runner: **Vitest** (fast, native ESM/TS, works in both apps).
-- Linter: **ESLint** (typescript-eslint). Formatter: **Prettier**.
-- Type check: **`tsc --noEmit`**.
-- **n8n** workflow lives as exported JSON; reverse proxy/TLS via **Caddy**
-  **(assumption — Caddy over Nginx for simpler automatic HTTPS)**.
+**Shared tooling**
+- Package manager: **npm** (Node 24 / npm 11 installed).
+- Test runner: **Vitest** (+ **Supertest** for backend HTTP tests).
+- Linter: **oxlint**. Formatter: **Prettier**. Type check: **`tsc --noEmit`**.
+- **n8n** workflow (deferred) lives as exported JSON; reverse proxy/TLS via
+  **Caddy** **(assumption — Caddy over Nginx for simpler automatic HTTPS)**.
 
 ## Repository structure
 Each app is self-contained with its own `package.json`, config, and tests.
@@ -49,27 +66,31 @@ Each app is self-contained with its own `package.json`, config, and tests.
 clinicalmatch/
 ├── frontend/                 # React + Vite PWA
 │   ├── src/
-│   │   ├── components/       # reusable UI
-│   │   ├── pages/            # the 9 screens (Home, Trials, Detail, …)
-│   │   ├── lib/              # api client, x-user-id identity, offline cache
+│   │   ├── components/       # reusable UI + design system
+│   │   ├── pages/            # the 10 screens (Home, Trials, Detail, …)
+│   │   ├── mock/             # mock data + mockApi (the only "server" for now)
+│   │   ├── store/, hooks/, lib/, layout/
 │   │   └── main.tsx
 │   ├── public/               # PWA icons, manifest assets
-│   └── tests/ (or *.test.tsx co-located)
-├── backend/                  # Express + TypeScript API
+│   └── *.test.ts(x) co-located
+├── backend/                  # Express 5 + TypeScript API
 │   ├── src/
-│   │   ├── routes/           # REST endpoints
-│   │   ├── db/               # better-sqlite3 setup, schema, migrations
-│   │   ├── ai/               # Claude calls + JSON schemas/validation
-│   │   ├── rag/              # chunking, embeddings, VectorStore
-│   │   ├── mcp/              # stdio MCP server (reuses routes/services)
-│   │   ├── agent/            # Telegraf bot (reuses MCP tools + RAG)
-│   │   └── seed/             # trial dataset seed script
-│   └── tests/ (or *.test.ts co-located)
-├── n8n/                      # exported workflow JSON
+│   │   ├── config.ts, app.ts, index.ts
+│   │   ├── routes/           # REST endpoints (added chunk by chunk)
+│   │   ├── db/               # better-sqlite3 setup, schema, seed (chunk 3)
+│   │   ├── ai/               # DEFERRED — Claude calls (seminar 6)
+│   │   ├── rag/, mcp/, agent/ # DEFERRED — their own later seminars
+│   │   └── *.test.ts co-located
+│   └── CLAUDE.md
+├── n8n/                      # DEFERRED — exported workflow JSON (later seminar)
 ├── deploy/                   # VPS notes, Caddy config
+├── assignment/              # build brief + chunk_*.md implementation plan
 ├── project-brief.md
 └── CLAUDE.md
 ```
+
+Dirs marked DEFERRED are planned but intentionally not built yet (see
+Status & scope).
 
 Tests live beside the code they cover (co-located `*.test.ts(x)`) or in a
 per-app `tests/` dir — keep them close and fast. Config (tsconfig, eslint,
@@ -87,21 +108,23 @@ prettier, vite) stays inside each app.
 5. **Readable over clever.** Match existing patterns; prefer conventional code.
 6. **Explain non-obvious decisions** in the commit body or a comment — the
    maintainer is learning.
-7. **Safety is a feature:** every AI response is validated JSON, retried once on
+7. **Keep CLAUDE.md current:** when you add a feature, add or change an
+   endpoint, or change project structure, update the relevant `CLAUDE.md`
+   (root, `frontend/`, or `backend/`) in the **same** change.
+8. **Safety is a feature:** every AI response is validated JSON, retried once on
    malformed output, then falls back to a calm inline message; the app stays
    usable when AI is down; the informational-only disclaimer appears on every AI
    surface. The "unlikely" verdict is neutral grey (`#8A8F8C`), never red.
 
 ## Commands
-Fill exact scripts in as each app is scaffolded; these are the intended shapes.
 
-**Backend** (`cd backend`)
+**Backend** (`cd backend`) — Express 5 + TS; base server up (chunk 1). Full
+details and the "how to add an endpoint" recipe live in `backend/CLAUDE.md`.
 - Install: `npm install`
-- Dev: `npm run dev` *(tsx/nodemon watch — to define)*
-- Test: `npm test` *(vitest)*
-- Lint: `npm run lint` · Format: `npm run format` · Types: `npm run typecheck`
-- Seed DB: `npm run seed`
-- MCP server: `npm run mcp` · Agent: `npm run agent`
+- Dev: `npm run dev` (tsx watch, http://localhost:3001) · Build: `npm run build` · Start: `npm start`
+- Test: `npm test` (vitest + supertest) · Watch: `npm run test:watch`
+- Types: `npm run typecheck` · Lint: `npm run lint` (oxlint) · Format: `npm run format`
+- DB (from chunk 3): `npm run migrate` · `npm run seed`
 
 **Frontend** (`cd frontend`) — scaffolded; runs on mock data (`src/mock/`).
 - Install: `npm install`

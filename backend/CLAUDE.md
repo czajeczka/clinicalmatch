@@ -1,0 +1,108 @@
+# CLAUDE.md — ClinicalMatch backend
+
+Standing guide for the `backend/` app. Read the root `CLAUDE.md` for the whole
+project and its engineering rules; this file is the backend-specific contract.
+
+**Keep this file current:** whenever you add or change an endpoint, change the
+database schema, or change the run/test workflow, update the relevant section
+here in the **same** change.
+
+## Purpose & stack
+
+REST API for ClinicalMatch: trials discovery, saved trials, communities
+(groups, discussions, replies), users, and notifications. The frontend PWA calls
+it; there is no login.
+
+- **Runtime/language:** Node.js 24 + TypeScript, **ESM** (`"module": "NodeNext"`).
+- **Framework:** Express 5.
+- **Database:** SQLite via `better-sqlite3` (synchronous) — added in chunk 3.
+- **Validation:** Zod (validate every request body / query).
+- **Tests:** Vitest + Supertest (HTTP-level).
+- **Lint/format:** oxlint + Prettier.
+
+**Deferred — do NOT implement in the backend chunks** (each has its own later
+seminar): the four **AI/LLM** features (seminar 6), **RAG**, **MCP**, the
+**n8n** workflow, and the **autonomous agent**. Leave `TODO: <topic> (seminar)`
+notes where a deferred feature would connect (e.g. `POST /notifications` is the
+future n8n log target). Ordinary integrations (email, etc.) are in scope.
+
+## How to run and test
+
+```bash
+npm install
+npm run dev          # tsx watch, http://localhost:3001
+npm run build        # tsc -p tsconfig.build.json  → dist/ (no test files)
+npm start            # node dist/index.js
+npm test             # vitest run  (+ supertest)
+npm run test:watch
+npm run typecheck    # tsc --noEmit  (typechecks tests too)
+npm run lint         # oxlint
+npm run format       # prettier --write .
+npm run migrate      # (from chunk 3) apply schema.sql
+npm run seed         # (from chunk 3) load the fictional catalogue
+```
+
+Env: copy `.env.example` → `.env`. Vars: `PORT` (3001), `CORS_ORIGIN`
+(`http://localhost:5173`), `NODE_ENV`, and `DB_PATH` (from chunk 3). Never
+commit `.env`.
+
+## API structure & conventions
+
+- **App wiring:** `src/config.ts` (Zod-validated env), `src/app.ts` (builds the
+  Express app; **no `listen`** so tests import it), `src/index.ts` (starts it).
+- **Routes:** one module per resource under `src/routes/*`, mounted in
+  `src/app.ts` **above** the 404 handler.
+- **Module style:** ESM with **relative imports and explicit `.js` extensions**
+  (e.g. `import { app } from './app.js'`). We deliberately do **not** use a
+  `@/*` path alias — it needs extra rewriting tooling for the `tsc` build.
+- **Identity:** device-based, no login. Clients send an **`x-user-id`** header
+  (generated on the frontend's first run). Identity middleware attaches
+  `req.userId`; a `requireUser` guard returns **401** when the header is missing.
+  Public reads (trials, groups) don't require it; anything user-owned does.
+- **Responses:** JSON. Errors are always `{ error: string }` (optionally
+  `{ error, details }` for validation). Status codes: **400** invalid input,
+  **401** missing identity, **403** not the owner, **404** not found, **201**
+  created, **204** no content.
+- **CORS:** restricted to `CORS_ORIGIN` (the frontend dev origin).
+- **JSON-in-TEXT:** SQLite stores array/object fields (criteria, centers, tags,
+  interests) as JSON strings; the db serialise helper (chunk 3) parses them back
+  to arrays so responses match the frontend types exactly.
+
+## Database schema (planned — finalise in chunk 3)
+
+SQLite tables (JSON-heavy fields stored as TEXT holding JSON):
+
+- `trials` (id, title, disease, phase, city, country, status,
+  short_description, full_description, inclusion_criteria[], exclusion_criteria[],
+  centers[], contact_*)
+- `support_groups` (id, name, disease, description, color, member_count)
+- `users` (id, display_name, age?, city?, interests[], created_at)
+- `discussions` (id, group_id, author_id, author_name, title?, content, tags[],
+  summary?, created_at) — `reply_count` derived
+- `replies` (id, discussion_id, author_id, author_name, content, created_at)
+- `saved_trials` (id, user_id, trial_id, created_at) — UNIQUE(user_id, trial_id)
+- `group_memberships` (id, user_id, group_id, created_at) — UNIQUE(user_id, group_id)
+- `notifications` (id, title, body, trial_id?, created_at, read)
+
+No `protocol_chunks`/embeddings table — that belongs to the deferred RAG seminar.
+_(Update this section with the exact DDL once chunk 3 lands.)_
+
+## How to add an endpoint
+
+1. **Write a failing Supertest test first** in `src/routes/<resource>.test.ts`.
+2. Create/extend `src/routes/<resource>.ts`; export an Express `Router`.
+3. **Validate** the body/query with Zod; return 400 `{ error, details }` on
+   failure.
+4. Read/write through the DB layer (`src/db/*`); use the serialise helper for
+   JSON columns.
+5. Enforce identity where relevant (`requireUser`; 403 for non-owners).
+6. **Mount** the router in `src/app.ts` above the 404 handler.
+7. Keep `typecheck`, `lint`, and `format` clean; run `npm test`.
+8. **Update this file's API section** (and the root `CLAUDE.md` if structure
+   changed).
+
+## Endpoints (kept current as chunks land)
+
+- `GET /health` — liveness. _(chunk 1)_
+- _Users, trials, saved trials, groups, memberships, discussions, replies,
+  notifications — added in chunks 4–10; document each here as it lands._
