@@ -18,7 +18,7 @@ export function Board() {
   const { isJoined, toggleJoin } = useApp()
   const [composeOpen, setComposeOpen] = useState(false)
 
-  // TODO: connect to API — done: GET /groups then find, and the group's board.
+  // Groups (find one) + the group's discussions board (api → backend).
   const { data: groups, loading: groupsLoading } = useAsync(
     () => api.getGroups(),
     []

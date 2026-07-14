@@ -2,7 +2,7 @@ import type { Disease, User } from '@/types'
 
 // Device-based anonymous identity (brief: no login, no account recovery).
 // Persisted to localStorage; sent later to the API as an `x-user-id` header.
-// TODO: connect to API — the server will trust this id; nothing else changes.
+// The id is sent to the backend as the `x-user-id` header (see lib/apiClient).
 
 const KEY = 'clinicalmatch.user'
 

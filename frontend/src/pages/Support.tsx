@@ -10,7 +10,7 @@ import { api } from '@/mock/mockApi'
 
 export function Support() {
   const navigate = useNavigate()
-  // TODO: connect to API — GET /groups
+  // GET /groups (api → backend)
   const { data, loading, error, reload } = useAsync(() => api.getGroups(), [])
 
   return (

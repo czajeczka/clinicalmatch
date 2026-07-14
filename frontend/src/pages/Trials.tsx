@@ -19,7 +19,7 @@ export function Trials() {
   const [disease, setDisease] = useState<Disease | 'all'>('all')
   const debouncedQuery = useDebounced(query, 300)
 
-  // TODO: connect to API — GET /trials?query=&disease=
+  // GET /trials?query=&disease= (api → backend)
   const { data, loading, error, reload } = useAsync(
     () => api.getTrials({ query: debouncedQuery, disease }),
     [debouncedQuery, disease]

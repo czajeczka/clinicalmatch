@@ -31,7 +31,7 @@ export function TrialDetail() {
   const online = useOnline()
   const { isSaved, toggleSave } = useApp()
 
-  // TODO: connect to API — GET /trials/:id
+  // GET /trials/:id (api → backend)
   const { data: trial, loading } = useAsync(() => api.getTrial(id), [id])
 
   const summary = useAiAction(() => api.summariseTrial(id))

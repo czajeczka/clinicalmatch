@@ -23,7 +23,7 @@ export function Assistant() {
   const online = useOnline()
 
   const [tool, setTool] = useState<Tool>('check')
-  // TODO: connect to API — GET /trials (for the selector)
+  // GET /trials for the selector (api → backend)
   const { data: trials } = useAsync(() => api.getTrials(), [])
 
   return (

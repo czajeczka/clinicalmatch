@@ -17,9 +17,9 @@ export function Home() {
   const { user } = useApp()
   const interests = user?.interests ?? []
 
-  // TODO: connect to API — GET /trials (then match against interests)
+  // GET /trials, matched against the user's interests (api → backend)
   const { data: trials, loading } = useAsync(() => api.getTrials(), [])
-  // TODO: connect to API — GET /notifications
+  // GET /notifications (api → backend)
   const { data: notifications } = useAsync(() => api.getNotifications(), [])
 
   const matching: Trial[] = (trials ?? []).filter(
