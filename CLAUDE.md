@@ -103,12 +103,13 @@ Fill exact scripts in as each app is scaffolded; these are the intended shapes.
 - Seed DB: `npm run seed`
 - MCP server: `npm run mcp` · Agent: `npm run agent`
 
-**Frontend** (`cd frontend`)
+**Frontend** (`cd frontend`) — scaffolded; runs on mock data (`src/mock/`).
 - Install: `npm install`
-- Dev: `npm run dev` *(vite)*
-- Build: `npm run build` · Preview: `npm run preview`
-- Test: `npm test` *(vitest)*
-- Lint: `npm run lint` · Format: `npm run format` · Types: `npm run typecheck`
+- Dev: `npm run dev` (vite, http://localhost:5173)
+- Build: `npm run build` (tsc + vite; generates the PWA service worker) · Preview: `npm run preview`
+- Test: `npm test` (vitest) · Watch: `npm run test:watch`
+- Types: `npm run typecheck` · Lint: `npm run lint` (oxlint) · Format: `npm run format` (prettier)
+- Stack: React 19 + TS, Vite 8, Tailwind v4, react-router 7, vite-plugin-pwa.
 
 ## Definition of done
 A change is done when:

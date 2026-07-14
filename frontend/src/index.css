@@ -1,0 +1,111 @@
+@import 'tailwindcss';
+
+/* Self-hosted fonts (offline-capable for the PWA) */
+@import '@fontsource/fraunces/400.css';
+@import '@fontsource/fraunces/600.css';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+/*
+  Design tokens — from the brief (palette, type) where confirmed, with a
+  proposed accessible supporting set for states/borders/dark mode.
+  See assignment/frontend.md § Visual design.
+*/
+@theme {
+  /* Brand palette (brief) */
+  --color-primary: #0c6b60; /* deep teal — trust */
+  --color-primary-hover: #0a5a51;
+  --color-secondary: #6e74c9; /* periwinkle — community */
+  --color-accent: #1e9e7e; /* spring green — CTAs */
+  --color-accent-hover: #188468;
+
+  /* Surfaces & text */
+  --color-bg: #edf2f0; /* cool pale sage */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f5f8f6;
+  --color-border: #d6e0dc;
+  --color-text: #12312c; /* deep pine */
+  --color-text-muted: #5a6b65;
+  --color-text-inverse: #ffffff;
+
+  /* Semantic (state) — error is NEVER used for the "unlikely" verdict */
+  --color-success: #1e9e7e;
+  --color-warning: #c98a2b;
+  --color-danger: #b4453c;
+  --color-focus: #6e74c9;
+
+  /* Eligibility verdict colours (brief) — grey for "unlikely", not red */
+  --color-verdict-likely: #1e9e7e;
+  --color-verdict-possibly: #c98a2b;
+  --color-verdict-unlikely: #8a8f8c;
+
+  /* Typography */
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* Radius */
+  --radius-card: 16px;
+  --radius-control: 12px;
+
+  /* Elevation */
+  --shadow-card: 0 1px 3px rgba(18, 49, 44, 0.08);
+  --shadow-sheet: 0 -8px 24px rgba(18, 49, 44, 0.12);
+  --shadow-pop: 0 8px 24px rgba(18, 49, 44, 0.16);
+}
+
+/* Dark mode (proposed). Driven by prefers-color-scheme, overridable by a
+   manual [data-theme] toggle on <html>. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-bg: #0f1b18;
+    --color-surface: #16241f;
+    --color-surface-muted: #1c2d27;
+    --color-border: #2a3a34;
+    --color-text: #eaf1ee;
+    --color-text-muted: #9db0a9;
+    --color-primary: #2a9d8f;
+    --color-accent: #35c79f;
+    --color-accent-hover: #2fae8c;
+  }
+}
+:root[data-theme='dark'] {
+  --color-bg: #0f1b18;
+  --color-surface: #16241f;
+  --color-surface-muted: #1c2d27;
+  --color-border: #2a3a34;
+  --color-text: #eaf1ee;
+  --color-text-muted: #9db0a9;
+  --color-primary: #2a9d8f;
+  --color-accent: #35c79f;
+  --color-accent-hover: #2fae8c;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Respect reduced-motion for all transitions/animations */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
