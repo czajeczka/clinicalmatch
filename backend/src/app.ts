@@ -11,6 +11,7 @@ import { trialsRouter } from './routes/trials.js'
 import { savedRouter } from './routes/saved.js'
 import { groupsRouter } from './routes/groups.js'
 import { membershipsRouter } from './routes/memberships.js'
+import { discussionsRouter } from './routes/discussions.js'
 
 /**
  * Builds the Express application (no `listen` — so tests can import it).
@@ -33,6 +34,8 @@ export function createApp() {
   app.use('/saved-trials', savedRouter)
   app.use('/groups', groupsRouter)
   app.use('/memberships', membershipsRouter)
+  // Mounted at root: owns /discussions/* and /groups/:groupId/discussions.
+  app.use(discussionsRouter)
 
   // 404 for anything unmatched.
   app.use((_req: Request, res: Response) => {

@@ -149,5 +149,17 @@ embeddings table — that belongs to the deferred RAG seminar.
   - `POST /memberships` — `{ group_id }`. 404 if unknown; idempotent (unique
     user_id+group_id): 201 first join, 200 if already joined.
   - `DELETE /memberships/:groupId` — leave; always 204 (idempotent).
-- _Discussions, replies, notifications — added in chunks 8–10; document each
-  here as it lands._
+- **Discussions** _(chunk 8)_ — all discussion routes live in one root-mounted
+  router. `reply_count` is derived (COUNT of replies).
+  - `GET /groups/:groupId/discussions` — public; `Discussion[]` newest first.
+  - `GET /discussions/:id` — public; one, or 404.
+  - `POST /discussions` — `requireUser`; `{ group_id, title?, content, tags?,
+summary? }`; `content` required non-empty (400 otherwise); 404 if the group
+    is unknown; stores `author_id`/`author_name` (from the user's display name,
+    else `"You"`); 201. **No AI** — post-enhancement is deferred (frontend
+    mock; TODO: LLM API, seminar 6).
+  - `PATCH /discussions/:id` — `requireUser`; author only (403 otherwise, 404 if
+    missing); edits title/content/tags.
+  - `DELETE /discussions/:id` — `requireUser`; author only; also deletes its
+    replies; 204.
+- _Replies, notifications — added in chunks 9–10; document each here as it lands._
