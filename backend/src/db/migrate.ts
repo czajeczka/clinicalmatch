@@ -1,14 +1,8 @@
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
-import { db as singleton, type DB } from './index.js'
-
-const schemaPath = join(dirname(fileURLToPath(import.meta.url)), 'schema.sql')
+import { applySchema, db as singleton, type DB } from './index.js'
 
 /** Apply the schema (idempotent — CREATE ... IF NOT EXISTS). */
 export function migrate(database: DB = singleton): void {
-  const schema = readFileSync(schemaPath, 'utf8')
-  database.exec(schema)
+  applySchema(database)
 }
 
 // `npm run migrate` runs this module directly.

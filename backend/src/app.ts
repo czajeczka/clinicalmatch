@@ -5,6 +5,8 @@ import express, {
 } from 'express'
 import cors from 'cors'
 import { config } from './config.js'
+import { identity } from './middleware/identity.js'
+import { usersRouter } from './routes/users.js'
 
 /**
  * Builds the Express application (no `listen` — so tests can import it).
@@ -15,12 +17,14 @@ export function createApp() {
 
   app.use(express.json())
   app.use(cors({ origin: config.CORS_ORIGIN }))
+  app.use(identity) // attach req.userId from the x-user-id header
 
   app.get('/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok' })
   })
 
-  // Feature routers mount above this point.
+  // Feature routers.
+  app.use('/users', usersRouter)
 
   // 404 for anything unmatched.
   app.use((_req: Request, res: Response) => {

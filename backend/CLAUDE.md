@@ -31,7 +31,7 @@ future n8n log target). Ordinary integrations (email, etc.) are in scope.
 ```bash
 npm install
 npm run dev          # tsx watch, http://localhost:3001
-npm run build        # tsc -p tsconfig.build.json  → dist/ (no test files)
+npm run build        # tsc → dist/ (no test files) + copies db/schema.sql into dist
 npm start            # node dist/index.js
 npm test             # vitest run  (+ supertest)
 npm run test:watch
@@ -115,5 +115,15 @@ embeddings table — that belongs to the deferred RAG seminar.
 ## Endpoints (kept current as chunks land)
 
 - `GET /health` — liveness. _(chunk 1)_
-- _Users, trials, saved trials, groups, memberships, discussions, replies,
-  notifications — added in chunks 4–10; document each here as it lands._
+- **Users** _(chunk 4)_ — device identity; `x-user-id` is read globally by the
+  `identity` middleware onto `req.userId`; `requireUser` guards owned resources.
+  - `POST /users` — `{ id?, display_name, age?, city?, interests: Disease[] }`.
+    Creates (201) or upserts a client-provided id (200; `created_at` preserved).
+    `interests` must be a subset of the five diseases (else 400).
+  - `GET /users/:id` — the user, or 404.
+  - `PATCH /users/:id` — partial update of display_name/age/city/interests; 404
+    if unknown.
+  - `GET /users?interest=<Disease>` — users following a disease (no `interest`
+    → all users; unknown disease → 400). Backs a future n8n step.
+- _Trials, saved trials, groups, memberships, discussions, replies,
+  notifications — added in chunks 5–10; document each here as it lands._

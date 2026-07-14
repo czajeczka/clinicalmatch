@@ -4,7 +4,7 @@
   "description": "",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node -e \"require('fs').cpSync('src/db/schema.sql','dist/db/schema.sql')\"",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
