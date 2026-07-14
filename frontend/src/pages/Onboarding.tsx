@@ -7,6 +7,7 @@ import { LogoMark } from '@/components/icons'
 import { DISEASES, type Disease } from '@/lib/diseases'
 import { createUser } from '@/lib/identity'
 import { useApp } from '@/store/store'
+import { api } from '@/mock/mockApi'
 
 /**
  * First-run flow. Creates a device-based anonymous identity (no login).
@@ -32,6 +33,17 @@ export function Onboarding() {
       interests: withInterests,
     })
     setUser(user)
+    // Persist the device identity to the backend so posts resolve author_name.
+    // Fire-and-forget: onboarding shouldn't block on the network.
+    void api
+      .upsertUser({
+        id: user.id,
+        display_name: user.display_name,
+        age: user.age,
+        city: user.city,
+        interests: user.interests,
+      })
+      .catch(() => {})
     navigate('/', { replace: true })
   }
 

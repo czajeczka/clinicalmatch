@@ -16,55 +16,64 @@ interface ComposeSheetProps {
   onClose: () => void
   groupId: string
   groupName: string
+  /** Called after a discussion is successfully published (board reloads). */
+  onPublished: () => void
 }
 
 /**
  * "Start a discussion" bottom sheet with optional AI enhancement. The original
  * and the improved draft are shown side by side; the user accepts or edits.
- * "Publish as-is" always works — the board never depends on the AI call.
+ * "Publish as-is" always works — the AI enhancement is deferred/mocked
+ * (TODO: LLM API (seminar 6)) and the board never depends on it.
  */
 export function ComposeSheet({
   open,
   onClose,
   groupId,
   groupName,
+  onPublished,
 }: ComposeSheetProps) {
-  const { addDiscussion } = useApp()
+  const { toast } = useApp()
   const online = useOnline()
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
-  const [applied, setApplied] = useState<PostEnhancement | null>(null)
+  const [publishing, setPublishing] = useState(false)
   const enhance = useAiAction(api.enhancePost)
 
   function reset() {
     setTitle('')
     setMessage('')
-    setApplied(null)
+    setPublishing(false)
     enhance.reset()
   }
 
-  function publish(useEnhancement: boolean) {
-    const src = useEnhancement && applied ? applied : null
-    addDiscussion({
-      group_id: groupId,
-      title: src?.title ?? title,
-      content: src?.improvedContent ?? message,
-      tags: src?.tags ?? [],
-      summary: src?.summary,
-    })
+  function close() {
     reset()
     onClose()
   }
 
+  async function publish(enhancement: PostEnhancement | null) {
+    setPublishing(true)
+    try {
+      await api.createDiscussion({
+        group_id: groupId,
+        title: enhancement?.title ?? (title || undefined),
+        content: enhancement?.improvedContent ?? message,
+        tags: enhancement?.tags ?? [],
+        summary: enhancement?.summary,
+      })
+      toast('Discussion published', 'success')
+      reset()
+      onPublished()
+      onClose()
+    } catch {
+      setPublishing(false)
+      toast('Couldn’t publish right now. Please try again.', 'error')
+    }
+  }
+
   return (
-    <BottomSheet
-      open={open}
-      onClose={() => {
-        reset()
-        onClose()
-      }}
-      title="Start a discussion"
-    >
+    <BottomSheet open={open} onClose={close} title="Start a discussion">
       <div className="space-y-4">
         <Input
           label="Title"
@@ -80,7 +89,7 @@ export function ComposeSheet({
           onChange={(e) => setMessage(e.target.value)}
         />
 
-        {/* AI enhancement */}
+        {/* AI enhancement (mocked — TODO: LLM API (seminar 6)) */}
         {online && (
           <div>
             <Button
@@ -138,10 +147,8 @@ export function ComposeSheet({
             <div className="mt-3 flex gap-2">
               <Button
                 size="sm"
-                onClick={() => {
-                  setApplied(enhance.data)
-                  publish(true)
-                }}
+                loading={publishing}
+                onClick={() => publish(enhance.data)}
               >
                 Use suggestion
               </Button>
@@ -153,16 +160,14 @@ export function ComposeSheet({
         )}
 
         <div className="flex justify-end gap-2 pt-1">
-          <Button
-            variant="ghost"
-            onClick={() => {
-              reset()
-              onClose()
-            }}
-          >
+          <Button variant="ghost" onClick={close}>
             Cancel
           </Button>
-          <Button disabled={!message.trim()} onClick={() => publish(false)}>
+          <Button
+            disabled={!message.trim()}
+            loading={publishing}
+            onClick={() => publish(null)}
+          >
             Publish
           </Button>
         </div>

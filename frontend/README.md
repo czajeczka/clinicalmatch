@@ -3,10 +3,12 @@
 Mobile-first, installable PWA for ClinicalMatch. Built from
 [`assignment/frontend.md`](../assignment/frontend.md).
 
-> **This phase runs on mock data only.** Every backend call goes through
-> `src/mock/mockApi.ts`, marked `TODO: connect to API`. Swapping in real
-> endpoints later means changing those function bodies — the shapes and the UI
-> stay the same.
+> **Connected to the backend (chunk 11).** All non-AI data now flows through
+> `src/lib/apiClient.ts` (sends the `x-user-id` header) via the `api` object in
+> `src/mock/mockApi.ts`. The four **AI features stay mocked** pending their
+> seminars (`TODO: LLM API (seminar 6)`; grounded Q&A also `TODO: RAG (later
+seminar)`). Set `VITE_API_URL` in `.env` (defaults to `http://localhost:3001`)
+> and run the backend (`cd ../backend && npm run seed && npm run dev`).
 
 ## Stack
 

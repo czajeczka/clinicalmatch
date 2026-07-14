@@ -33,6 +33,8 @@ export function Profile() {
     const updated = { ...user, interests: next }
     saveUser(updated)
     setUser(updated)
+    // Persist to the backend so interest-based matching stays in sync.
+    void api.patchUser(user.id, { interests: next }).catch(() => {})
   }
 
   return (

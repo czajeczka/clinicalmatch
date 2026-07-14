@@ -19,11 +19,13 @@ investigators' call**, and that framing must appear on every AI surface.
 
 ## Status & scope
 Two-app monorepo:
-- **`frontend/`** — built and running on **mock data** (`src/mock/`). Every
-  backend call is marked `TODO: connect to API`. See `frontend/CLAUDE.md`.
-- **`backend/`** — Express + TypeScript + SQLite. Base server is up (chunk 1);
-  feature endpoints are added chunk by chunk (see `assignment/chunk_*.md`). See
-  `backend/CLAUDE.md`.
+- **`frontend/`** — built and **connected to the backend** (chunk 11) for all
+  non-AI data via `src/lib/apiClient.ts` (sends `x-user-id`). The four AI
+  features remain mocked pending their seminars. Set `VITE_API_URL`. See
+  `frontend/CLAUDE.md`.
+- **`backend/`** — Express + TypeScript + SQLite. Full non-AI REST API built and
+  tested (chunks 1–10): users, trials, saved-trials, groups, memberships,
+  discussions, replies, notifications. See `backend/CLAUDE.md`.
 
 **Deferred building blocks — do NOT build these early** (each gets its own later
 seminar; building now just means redoing it):

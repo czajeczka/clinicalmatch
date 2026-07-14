@@ -4,6 +4,7 @@ import { Header } from '@/layout/Header'
 import { DiscussionCard } from '@/components/DiscussionCard'
 import { EmptyState } from '@/components/EmptyState'
 import { SkeletonList } from '@/components/Skeleton'
+import { ErrorRetry } from '@/components/ErrorRetry'
 import { Button } from '@/components/Button'
 import { ComposeSheet } from '@/components/ComposeSheet'
 import { PlusIcon, UsersIcon } from '@/components/icons'
@@ -14,16 +15,25 @@ import { useApp } from '@/store/store'
 export function Board() {
   const { groupId = '' } = useParams()
   const navigate = useNavigate()
-  const { discussionsForGroup, isJoined, toggleJoin } = useApp()
+  const { isJoined, toggleJoin } = useApp()
   const [composeOpen, setComposeOpen] = useState(false)
 
-  // TODO: connect to API — GET /groups/:id
-  const { data: groups, loading } = useAsync(() => api.getGroups(), [])
+  // TODO: connect to API — done: GET /groups then find, and the group's board.
+  const { data: groups, loading: groupsLoading } = useAsync(
+    () => api.getGroups(),
+    []
+  )
+  const {
+    data: discussions,
+    loading,
+    error,
+    reload,
+  } = useAsync(() => api.getGroupDiscussions(groupId), [groupId])
+
   const group = groups?.find((g) => g.id === groupId)
-  const discussions = discussionsForGroup(groupId)
   const joined = group ? isJoined(group.id) : false
 
-  if (loading) {
+  if (groupsLoading) {
     return (
       <div>
         <Header title="" back />
@@ -48,9 +58,7 @@ export function Board() {
   }
 
   function startDiscussion() {
-    if (!joined) {
-      toggleJoin(group!.id, group!.name)
-    }
+    if (!joined) toggleJoin(group!.id, group!.name)
     setComposeOpen(true)
   }
 
@@ -75,7 +83,11 @@ export function Board() {
       </div>
 
       <div className="px-4 py-4">
-        {discussions.length === 0 ? (
+        {loading && <SkeletonList count={4} />}
+        {!loading && error && (
+          <ErrorRetry message="Couldn’t load this board." onRetry={reload} />
+        )}
+        {!loading && !error && discussions && discussions.length === 0 && (
           <EmptyState
             icon={<UsersIcon className="h-8 w-8" />}
             title="No discussions yet"
@@ -83,7 +95,8 @@ export function Board() {
             actionLabel="Start a discussion"
             onAction={startDiscussion}
           />
-        ) : (
+        )}
+        {!loading && !error && discussions && discussions.length > 0 && (
           <div className="flex flex-col gap-3">
             {discussions.map((d) => (
               <DiscussionCard
@@ -111,6 +124,7 @@ export function Board() {
         onClose={() => setComposeOpen(false)}
         groupId={group.id}
         groupName={group.name}
+        onPublished={reload}
       />
     </div>
   )

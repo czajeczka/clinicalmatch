@@ -1,28 +1,34 @@
 import type {
+  AppNotification,
   Disease,
+  Discussion,
   EligibilityResult,
   PlainCriteria,
   PostEnhancement,
+  Reply,
   SelfCheckInput,
+  SupportGroup,
   Trial,
   TrialAnswer,
   TrialSummary,
+  User,
 } from '@/types'
-import { MOCK_GROUPS, MOCK_NOTIFICATIONS, MOCK_TRIALS } from './data'
+import { apiClient } from '@/lib/apiClient'
+import { MOCK_TRIALS } from './data'
 
 // ---------------------------------------------------------------------------
-// Mock API. This is the ONLY place the UI "talks to a server" in this phase.
-// Every function below is a `TODO: connect to API` seam: swap the body for a
-// real fetch() and the shapes stay identical (see assignment/frontend.md).
+// API layer. Non-AI reads/mutations call the real backend via apiClient.
+// The four AI features stay MOCKED here — they belong to later seminars
+// (TODO: LLM API (seminar 6); the grounded Q&A is also TODO: RAG (later
+// seminar)). The mock still validates JSON shapes and exercises the UI's
+// loading / error / offline states.
 // ---------------------------------------------------------------------------
 
-const LATENCY_MS = 450
-
-function delay<T>(value: T, ms = LATENCY_MS): Promise<T> {
+function delay<T>(value: T, ms = 500): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
 }
 
-/** Escape hatch to demo error states without randomness: any AI input that
+/** Escape hatch to demo AI error states without randomness: any AI input that
  *  contains this token forces the request to fail (retry-once then fallback). */
 export const FAIL_TOKEN = 'FAILTEST'
 
@@ -32,9 +38,7 @@ function maybeFail(input: string): void {
   }
 }
 
-// ---- Pure, testable helpers ------------------------------------------------
-
-/** Filter the catalogue by free-text query and disease. Exported for tests. */
+/** Pure catalogue filter — kept for unit tests and any client-side reuse. */
 export function filterTrials(
   trials: Trial[],
   query: string,
@@ -55,9 +59,9 @@ export function filterTrials(
 }
 
 /**
- * Informational eligibility estimate. Mirrors the real prompt's rule: when a
- * key piece of information is missing or ambiguous, default to "possibly" and
- * never guess. Deterministic so the demo and tests are stable.
+ * Informational eligibility estimate (MOCKED — TODO: LLM API (seminar 6)).
+ * Mirrors the real prompt's rule: default to "possibly" when key information
+ * is missing, never guess. Deterministic so the demo/tests are stable.
  * Exported for tests.
  */
 export function computeVerdict(
@@ -67,7 +71,6 @@ export function computeVerdict(
   const matches: string[] = []
   const gaps: string[] = []
 
-  // Age vs any "aged X–Y" inclusion criterion.
   const ageRule = trial.inclusion_criteria.find((c) => /aged/i.test(c))
   const range = ageRule?.match(/(\d{2})\s*[–-]\s*(\d{2})/)
   let ageOk: boolean | null = null
@@ -86,7 +89,6 @@ export function computeVerdict(
     gaps.push('No clear age range was found to compare against.')
   }
 
-  // Condition match against the trial's disease.
   const condition = input.condition.trim().toLowerCase()
   const diseaseWords = trial.disease.toLowerCase().split(/\s+/)
   const conditionMatches =
@@ -111,12 +113,10 @@ export function computeVerdict(
     (condition.length > 0 && !conditionMatches) ||
     closed
   ) {
-    // A clear mismatch → unlikely (shown in neutral grey, never red).
     verdict = 'unlikely'
   } else if (ageOk === true && conditionMatches && gaps.length === 0) {
     verdict = 'likely'
   } else {
-    // Missing/ambiguous information → default to possibly, never guess.
     verdict = 'possibly'
   }
 
@@ -136,42 +136,151 @@ export function computeVerdict(
   }
 }
 
-// ---- Reads -----------------------------------------------------------------
+function mockTrial(trialId: string): Trial {
+  const trial = MOCK_TRIALS.find((t) => t.id === trialId)
+  if (!trial) throw new Error(`Unknown trial: ${trialId}`)
+  return trial
+}
+
+function qs(params: Record<string, string | undefined>): string {
+  const entries = Object.entries(params).filter(([, v]) => v && v.length > 0)
+  if (entries.length === 0) return ''
+  return (
+    '?' +
+    entries
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v!)}`)
+      .join('&')
+  )
+}
 
 export const api = {
-  async getTrials(params?: {
-    query?: string
-    disease?: Disease | 'all'
-  }): Promise<Trial[]> {
-    // TODO: connect to API — GET /trials?query=&disease=
-    const result = filterTrials(
-      MOCK_TRIALS,
-      params?.query ?? '',
-      params?.disease ?? 'all'
+  // ---- Trials (real) ----
+  getTrials(params?: { query?: string; disease?: Disease | 'all' }) {
+    const disease =
+      params?.disease && params.disease !== 'all' ? params.disease : undefined
+    return apiClient.get<Trial[]>(
+      `/trials${qs({ query: params?.query, disease })}`
     )
-    return delay(result)
+  },
+  getTrial(id: string) {
+    return apiClient
+      .get<Trial>(`/trials/${encodeURIComponent(id)}`)
+      .catch((err) => {
+        if (err?.status === 404) return null
+        throw err
+      })
   },
 
-  async getTrial(id: string): Promise<Trial | null> {
-    // TODO: connect to API — GET /trials/:id
-    return delay(MOCK_TRIALS.find((t) => t.id === id) ?? null)
+  // ---- Communities (real) ----
+  getGroups() {
+    return apiClient.get<SupportGroup[]>('/groups')
+  },
+  getGroupDiscussions(groupId: string) {
+    return apiClient.get<Discussion[]>(
+      `/groups/${encodeURIComponent(groupId)}/discussions`
+    )
+  },
+  getDiscussion(id: string) {
+    return apiClient
+      .get<Discussion>(`/discussions/${encodeURIComponent(id)}`)
+      .catch((err) => {
+        if (err?.status === 404) return null
+        throw err
+      })
+  },
+  getReplies(discussionId: string) {
+    return apiClient.get<Reply[]>(
+      `/discussions/${encodeURIComponent(discussionId)}/replies`
+    )
+  },
+  createDiscussion(input: {
+    group_id: string
+    title?: string
+    content: string
+    tags?: string[]
+    summary?: string
+  }) {
+    return apiClient.post<Discussion>('/discussions', input)
+  },
+  updateDiscussion(
+    id: string,
+    patch: { title?: string; content?: string; tags?: string[] }
+  ) {
+    return apiClient.patch<Discussion>(
+      `/discussions/${encodeURIComponent(id)}`,
+      patch
+    )
+  },
+  deleteDiscussion(id: string) {
+    return apiClient.delete<void>(`/discussions/${encodeURIComponent(id)}`)
+  },
+  createReply(discussionId: string, content: string) {
+    return apiClient.post<Reply>(
+      `/discussions/${encodeURIComponent(discussionId)}/replies`,
+      { content }
+    )
+  },
+  deleteReply(id: string) {
+    return apiClient.delete<void>(`/replies/${encodeURIComponent(id)}`)
   },
 
-  async getGroups() {
-    // TODO: connect to API — GET /groups
-    return delay(MOCK_GROUPS)
+  // ---- Saved trials (real) ----
+  getSavedTrials() {
+    return apiClient.get<Trial[]>('/saved-trials')
+  },
+  saveTrial(trialId: string) {
+    return apiClient.post('/saved-trials', { trial_id: trialId })
+  },
+  unsaveTrial(trialId: string) {
+    return apiClient.delete<void>(
+      `/saved-trials/${encodeURIComponent(trialId)}`
+    )
   },
 
-  async getNotifications() {
-    // TODO: connect to API — GET /notifications
-    return delay(MOCK_NOTIFICATIONS)
+  // ---- Memberships (real) ----
+  getMemberships() {
+    return apiClient.get<SupportGroup[]>('/memberships')
+  },
+  joinGroup(groupId: string) {
+    return apiClient.post('/memberships', { group_id: groupId })
+  },
+  leaveGroup(groupId: string) {
+    return apiClient.delete<void>(`/memberships/${encodeURIComponent(groupId)}`)
   },
 
-  // ---- AI features (validated JSON in the real backend) --------------------
+  // ---- Users (real) ----
+  upsertUser(user: {
+    id: string
+    display_name: string
+    age?: number
+    city?: string
+    interests: Disease[]
+  }) {
+    return apiClient.post<User>('/users', user)
+  },
+  patchUser(
+    id: string,
+    patch: {
+      display_name?: string
+      age?: number | null
+      city?: string | null
+      interests?: Disease[]
+    }
+  ) {
+    return apiClient.patch<User>(`/users/${encodeURIComponent(id)}`, patch)
+  },
+
+  // ---- Notifications (real) ----
+  getNotifications() {
+    return apiClient.get<AppNotification[]>('/notifications')
+  },
+
+  // ---- AI features (MOCKED — deferred) --------------------------------------
+  // TODO: LLM API (seminar 6) — replace the bodies below with real backend
+  // calls once the AI/LLM abstraction layer exists.
 
   async summariseTrial(trialId: string): Promise<TrialSummary> {
-    // TODO: connect to API — POST /ai/summary { trial_id }
-    const trial = mustTrial(trialId)
+    const trial = mockTrial(trialId)
     await delay(null, 700)
     maybeFail(trial.full_description)
     return {
@@ -188,8 +297,7 @@ export const api = {
   },
 
   async explainCriteria(trialId: string): Promise<PlainCriteria> {
-    // TODO: connect to API — POST /ai/criteria { trial_id }
-    const trial = mustTrial(trialId)
+    const trial = mockTrial(trialId)
     await delay(null, 650)
     maybeFail(trial.inclusion_criteria.join(' '))
     return {
@@ -199,16 +307,15 @@ export const api = {
   },
 
   async selfCheck(input: SelfCheckInput): Promise<EligibilityResult> {
-    // TODO: connect to API — POST /ai/self-check { trial_id, age, gender, ... }
-    const trial = mustTrial(input.trial_id)
+    const trial = mockTrial(input.trial_id)
     await delay(null, 800)
     maybeFail(input.condition + ' ' + (input.treatment ?? ''))
     return computeVerdict(trial, input)
   },
 
   async askTrial(trialId: string, question: string): Promise<TrialAnswer> {
-    // TODO: connect to API — POST /ai/ask { trial_id, question }  (RAG)
-    const trial = mustTrial(trialId)
+    // TODO: RAG (later seminar) + TODO: LLM API (seminar 6)
+    const trial = mockTrial(trialId)
     await delay(null, 750)
     maybeFail(question)
     const q = question.toLowerCase()
@@ -239,7 +346,6 @@ export const api = {
     message: string
     groupName: string
   }): Promise<PostEnhancement> {
-    // TODO: connect to API — POST /ai/enhance-post { title, message, group }
     await delay(null, 700)
     maybeFail(draft.message + ' ' + (draft.title ?? ''))
     const firstLine = draft.message.split('\n')[0].slice(0, 60)
@@ -255,16 +361,9 @@ export const api = {
   },
 }
 
-// ---- internal helpers ------------------------------------------------------
-
-function mustTrial(id: string): Trial {
-  const trial = MOCK_TRIALS.find((t) => t.id === id)
-  if (!trial) throw new Error(`Unknown trial: ${id}`)
-  return trial
-}
+// ---- internal helpers (AI mocks) ----
 
 function plainify(criterion: string): string {
-  // A light touch — the real feature rewrites via the model.
   return criterion.replace(/\bBMI\b/g, 'body mass index')
 }
 

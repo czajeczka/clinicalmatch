@@ -6,37 +6,67 @@ import { Button } from '@/components/Button'
 import { Input, Textarea } from '@/components/Field'
 import { Tag } from '@/components/Badge'
 import { EmptyState } from '@/components/EmptyState'
+import { SkeletonList } from '@/components/Skeleton'
+import { ErrorRetry } from '@/components/ErrorRetry'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { timeAgo } from '@/lib/format'
+import { useAsync } from '@/hooks/useAsync'
+import { api } from '@/mock/mockApi'
 import { useApp } from '@/store/store'
 
 export function Thread() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
-  const {
-    getDiscussion,
-    repliesForDiscussion,
-    addReply,
-    deleteReply,
-    updateDiscussion,
-    deleteDiscussion,
-    isOwn,
-  } = useApp()
+  const { isOwn, toast } = useApp()
 
-  const discussion = getDiscussion(id)
-  const replies = repliesForDiscussion(id)
+  const {
+    data: discussion,
+    loading,
+    error,
+    reload: reloadDiscussion,
+  } = useAsync(() => api.getDiscussion(id), [id])
+  const { data: replies, reload: reloadReplies } = useAsync(
+    () => api.getReplies(id),
+    [id]
+  )
+
   const [reply, setReply] = useState('')
   const [editing, setEditing] = useState(false)
-  const [editTitle, setEditTitle] = useState(discussion?.title ?? '')
-  const [editContent, setEditContent] = useState(discussion?.content ?? '')
+  const [editTitle, setEditTitle] = useState('')
+  const [editContent, setEditContent] = useState('')
   const [confirmDelete, setConfirmDelete] = useState<
     { kind: 'post' } | { kind: 'reply'; replyId: string } | null
   >(null)
 
+  if (loading) {
+    return (
+      <div>
+        <Header title="Discussion" back display={false} />
+        <div className="p-4">
+          <SkeletonList count={3} />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div>
+        <Header title="Discussion" back display={false} />
+        <div className="p-4">
+          <ErrorRetry
+            message="Couldn’t load this discussion."
+            onRetry={reloadDiscussion}
+          />
+        </div>
+      </div>
+    )
+  }
+
   if (!discussion) {
     return (
       <div>
-        <Header title="Discussion" back />
+        <Header title="Discussion" back display={false} />
         <EmptyState
           title="Discussion not found"
           body="It may have been deleted."
@@ -48,19 +78,30 @@ export function Thread() {
   }
 
   const ownPost = isOwn(discussion.author_id)
+  const replyList = replies ?? []
 
   function submitReply() {
-    if (!reply.trim()) return
-    addReply(discussion!.id, reply)
+    const content = reply.trim()
+    if (!content) return
     setReply('')
+    api
+      .createReply(discussion!.id, content)
+      .then(() => reloadReplies())
+      .catch(() => toast('Couldn’t post your reply.', 'error'))
   }
 
   function saveEdit() {
-    updateDiscussion(discussion!.id, {
-      title: editTitle.trim() || undefined,
-      content: editContent.trim(),
-    })
-    setEditing(false)
+    api
+      .updateDiscussion(discussion!.id, {
+        title: editTitle.trim() || undefined,
+        content: editContent.trim(),
+      })
+      .then(() => {
+        setEditing(false)
+        reloadDiscussion()
+        toast('Post updated', 'success')
+      })
+      .catch(() => toast('Couldn’t update the post.', 'error'))
   }
 
   return (
@@ -148,15 +189,15 @@ export function Thread() {
         {/* Replies */}
         <div>
           <h2 className="text-text-muted mb-2 px-1 font-mono text-xs uppercase">
-            {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+            {replyList.length} {replyList.length === 1 ? 'reply' : 'replies'}
           </h2>
-          {replies.length === 0 ? (
+          {replyList.length === 0 ? (
             <p className="text-text-muted px-1 text-sm">
               No replies yet — start the conversation.
             </p>
           ) : (
             <div className="flex flex-col gap-2">
-              {replies.map((r) => (
+              {replyList.map((r) => (
                 <Card key={r.id}>
                   <p className="text-text text-sm whitespace-pre-wrap">
                     {r.content}
@@ -218,11 +259,20 @@ export function Thread() {
         onCancel={() => setConfirmDelete(null)}
         onConfirm={() => {
           if (confirmDelete?.kind === 'post') {
-            deleteDiscussion(discussion.id)
+            api
+              .deleteDiscussion(discussion.id)
+              .then(() => {
+                toast('Post deleted', 'success')
+                navigate(-1)
+              })
+              .catch(() => toast('Couldn’t delete the post.', 'error'))
             setConfirmDelete(null)
-            navigate(-1)
           } else if (confirmDelete?.kind === 'reply') {
-            deleteReply(confirmDelete.replyId)
+            const replyId = confirmDelete.replyId
+            api
+              .deleteReply(replyId)
+              .then(() => reloadReplies())
+              .catch(() => toast('Couldn’t delete the reply.', 'error'))
             setConfirmDelete(null)
           }
         }}
