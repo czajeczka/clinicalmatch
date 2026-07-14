@@ -13,6 +13,7 @@ import { groupsRouter } from './routes/groups.js'
 import { membershipsRouter } from './routes/memberships.js'
 import { discussionsRouter } from './routes/discussions.js'
 import { repliesRouter } from './routes/replies.js'
+import { notificationsRouter } from './routes/notifications.js'
 
 /**
  * Builds the Express application (no `listen` — so tests can import it).
@@ -39,6 +40,7 @@ export function createApp() {
   app.use(discussionsRouter)
   // Mounted at root: owns /discussions/:id/replies and /replies/:id.
   app.use(repliesRouter)
+  app.use('/notifications', notificationsRouter)
 
   // 404 for anything unmatched.
   app.use((_req: Request, res: Response) => {

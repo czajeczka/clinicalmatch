@@ -171,4 +171,11 @@ summary? }`; `content` required non-empty (400 otherwise); 404 if the group
     `author_id`/`author_name`; 201.
   - `DELETE /replies/:id` — `requireUser`; author only (403 otherwise, 404 if
     missing); 204.
-- _Notifications — added in chunk 10; document here as it lands._
+- **Notifications** _(chunk 10)_ — plain REST; global demo list (not
+  user-scoped), matching the frontend's `getNotifications()`.
+  - `GET /notifications` — `Notification[]`, newest first.
+  - `POST /notifications` — `{ title, body, trial_id? }`; 201 with the record
+    (`read: false`). **This is the future n8n "log the interaction" target**
+    (TODO: n8n workflow, later seminar); the AI email summary is deferred too
+    (LLM, seminar 6). Only storage is built here.
+  - `PATCH /notifications/:id` — `{ read }`; marks read/unread; 404 if unknown.
