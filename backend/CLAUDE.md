@@ -162,4 +162,13 @@ summary? }`; `content` required non-empty (400 otherwise); 404 if the group
     missing); edits title/content/tags.
   - `DELETE /discussions/:id` — `requireUser`; author only; also deletes its
     replies; 204.
-- _Replies, notifications — added in chunks 9–10; document each here as it lands._
+- **Replies** _(chunk 9)_ — root-mounted router. `reply_count` stays derived,
+  so posting/deleting moves it automatically (no counter to maintain).
+  - `GET /discussions/:discussionId/replies` — public; `Reply[]` oldest-first;
+    404 if the discussion is unknown.
+  - `POST /discussions/:discussionId/replies` — `requireUser`; `{ content }`
+    (non-empty, else 400); 404 if the discussion is unknown; stores
+    `author_id`/`author_name`; 201.
+  - `DELETE /replies/:id` — `requireUser`; author only (403 otherwise, 404 if
+    missing); 204.
+- _Notifications — added in chunk 10; document here as it lands._
