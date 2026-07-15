@@ -143,6 +143,56 @@ details and the "how to add an endpoint" recipe live in `backend/CLAUDE.md`.
 3. The backend Supertest e2e (`backend/src/e2e.test.ts`) covers the same
    non-AI golden path headlessly.
 
+## Deployment (Docker + Traefik)
+Production runs as three containers on a shared Docker network, orchestrated by
+`docker-compose.yml` at the repo root. **Config only — nothing is started
+automatically; run `docker compose up` yourself when ready.**
+
+Files:
+- `backend/Dockerfile` — multi-stage: full `node:24-bookworm` builds TS and the
+  native `better-sqlite3` binary, then `node:24-bookworm-slim` runs
+  `node dist/index.js` as the non-root `node` user. Schema auto-applies on boot
+  (`db/index.ts`); the SQLite file lives on the `backend-data` volume.
+- `frontend/Dockerfile` + `frontend/nginx.conf` — multi-stage: build the Vite
+  bundle, serve it with `nginx:1.27-alpine` (SPA fallback + PWA-aware caching).
+  `VITE_API_URL` is a **build arg**, inlined at build time.
+- `docker-compose.yml` — `traefik` + `backend` + `frontend` services, shared
+  `clinicalmatch` bridge network, `restart: always` on all three. Backend config
+  via `env_file: .env`; `backend-data` (DB) and `letsencrypt` (certs) named
+  volumes.
+- `.env.example` — every variable (`DOMAIN`, `ACME_EMAIL`; backend `PORT`/
+  `CORS_ORIGIN`/`NODE_ENV`/`DB_PATH`; build `VITE_API_URL`). Copy to `.env`
+  (git-ignored) and fill in before building.
+- `backend/.dockerignore`, `frontend/.dockerignore` — keep `node_modules`,
+  build output, the DB, and secrets out of the images.
+
+**Traefik ingress & routing.** Traefik is the single entrypoint; it terminates
+TLS and is the only service publishing host ports.
+- Entrypoints: `web` (:80) and `websecure` (:443); `web` globally redirects to
+  `websecure` (HTTP → HTTPS).
+- Certificates: Let's Encrypt via the ACME **HTTP-01** challenge (resolver `le`,
+  email `${ACME_EMAIL}`), persisted to `/letsencrypt/acme.json` on the
+  `letsencrypt` volume (Traefik creates the file with 600 perms).
+- Provider: `docker` with `exposedbydefault=false` — services opt in via
+  `traefik.enable=true` labels. Docker socket mounted **read-only**. Image is
+  pinned to **`traefik:v3.7`**: older Traefik (e.g. v3.3) pins Docker API 1.24,
+  which this host's Docker Engine (API ≥ 1.40) rejects, breaking label discovery.
+- Routing (single subdomain `${DOMAIN}`), both routers on `websecure` + resolver
+  `le`:
+  - `Host(DOMAIN)` → **frontend** (nginx, container port 80).
+  - `Host(DOMAIN) && PathPrefix(/api)` → **backend** (container port 3001),
+    priority 100, with a `StripPrefix(/api)` middleware so the API still sees its
+    root paths (`/trials`, `/groups`, `/users`, `/saved-trials`, …).
+- Because both are served from the same origin, `VITE_API_URL` is
+  `https://<DOMAIN>/api` and browser CORS is effectively moot (`CORS_ORIGIN`
+  stays set as a safety belt). The app services expose **no** host ports —
+  reachable only through Traefik on the shared network.
+
+Usual flow: `cp .env.example .env` → fill in `DOMAIN`, `ACME_EMAIL`,
+`VITE_API_URL=https://<DOMAIN>/api`, `CORS_ORIGIN=https://<DOMAIN>` → ensure DNS
+for `<DOMAIN>` points at the server → `docker compose up -d --build`. Docker is
+already enabled on boot (`systemctl enable docker`).
+
 ## Acceptance status (against the brief)
 Done vs. deferred as of the current chunks (12/12):
 

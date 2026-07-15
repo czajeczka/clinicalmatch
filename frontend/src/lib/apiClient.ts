@@ -4,7 +4,10 @@ import { loadUser } from './identity'
 // (`x-user-id`) on every request and throws on non-2xx, so the existing
 // useAsync / useAiAction error states light up on real failures.
 
-const BASE_URL: string = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+// `||` (not `??`) so a present-but-empty VITE_API_URL (e.g. a blank .env entry
+// baked in at build time) falls back to the dev default instead of an empty
+// base that would produce broken same-origin requests.
+const BASE_URL: string = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 export class ApiError extends Error {
   status: number

@@ -1,0 +1,16 @@
+# Keep the build context small and never copy deps, build output, the DB, or
+# secrets into the image (deps are reinstalled fresh via `npm ci`).
+node_modules
+dist
+data
+*.sqlite
+*.sqlite-*
+.env
+.env.*
+!.env.example
+*.log
+.git
+.gitignore
+Dockerfile
+.dockerignore
+coverage

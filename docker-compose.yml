@@ -1,0 +1,107 @@
+# ClinicalMatch — production compose stack behind Traefik.
+#
+# Traefik is the single ingress: it terminates TLS (Let's Encrypt) and routes
+# by hostname/path to the app containers over the shared network. The app
+# services publish NO host ports — they are reachable only through Traefik.
+#
+# Routing (single subdomain, ${DOMAIN}):
+#   https://${DOMAIN}/        -> frontend (nginx static PWA)
+#   https://${DOMAIN}/api/... -> backend  (StripPrefix /api, so it sees /trials…)
+# Frontend and backend are therefore SAME-ORIGIN (no browser CORS needed).
+#
+# Fill in .env (copy from .env.example) before building. Nothing starts by
+# creating this file; run `docker compose up -d --build` when you're ready.
+
+services:
+  traefik:
+    # v3.7+ needed: older Traefik (e.g. v3.3) pins Docker API 1.24, which the
+    # Docker Engine on this host (API >= 1.40) rejects, breaking label discovery.
+    image: traefik:v3.7
+    restart: always
+    command:
+      # --- Docker provider: discover services via labels, opt-in only ---
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      # --- Entrypoints ---
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      # --- Global HTTP -> HTTPS redirect ---
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      # --- Let's Encrypt via ACME HTTP-01 challenge (served on :80) ---
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge=true
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      # Read-only socket so Traefik can watch container labels.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Persist issued certs (Traefik creates acme.json with 600 perms here).
+      - letsencrypt:/letsencrypt
+    networks:
+      - clinicalmatch
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: clinicalmatch-backend
+    restart: always
+    # Backend configuration (PORT, CORS_ORIGIN, NODE_ENV, DB_PATH) from .env.
+    env_file:
+      - .env
+    volumes:
+      # Persist the SQLite database across restarts / rebuilds.
+      - backend-data:/app/data
+    networks:
+      - clinicalmatch
+    # No host ports — reachable only via Traefik on the shared network.
+    labels:
+      - traefik.enable=true
+      # Same host as the frontend, but the /api path prefix routes here.
+      - traefik.http.routers.backend.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)
+      - traefik.http.routers.backend.entrypoints=websecure
+      - traefik.http.routers.backend.tls=true
+      - traefik.http.routers.backend.tls.certresolver=le
+      # Beat the frontend catch-all (Host-only) rule.
+      - traefik.http.routers.backend.priority=100
+      # Strip /api so the backend still sees /trials, /groups, /users, …
+      - traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api
+      - traefik.http.routers.backend.middlewares=backend-stripprefix
+      # Container port the API listens on (config.ts PORT default 3001).
+      - traefik.http.services.backend.loadbalancer.server.port=3001
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Baked into the bundle at build time; same-origin /api path.
+        VITE_API_URL: ${VITE_API_URL}
+    image: clinicalmatch-frontend
+    restart: always
+    depends_on:
+      - backend
+    networks:
+      - clinicalmatch
+    # No host ports — reachable only via Traefik on the shared network.
+    labels:
+      - traefik.enable=true
+      # Catch-all host rule; the backend's /api rule has higher priority.
+      - traefik.http.routers.frontend.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.frontend.entrypoints=websecure
+      - traefik.http.routers.frontend.tls=true
+      - traefik.http.routers.frontend.tls.certresolver=le
+      # nginx serves on port 80 inside the container.
+      - traefik.http.services.frontend.loadbalancer.server.port=80
+
+networks:
+  clinicalmatch:
+    driver: bridge
+
+volumes:
+  backend-data:
+  letsencrypt:

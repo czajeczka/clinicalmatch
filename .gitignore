@@ -1,0 +1,4 @@
+# Project-root environment file for docker compose — never commit secrets.
+.env
+.env.*
+!.env.example
