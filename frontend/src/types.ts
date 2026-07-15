@@ -24,7 +24,8 @@ export interface Center {
 export interface Trial {
   id: string
   title: string
-  disease: Disease
+  // Free-form disease-area label (platform now spans all CTIS areas).
+  disease: string
   phase: string
   city: string
   country: string
@@ -37,6 +38,32 @@ export interface Trial {
   contact_name: string
   contact_email: string
   contact_phone: string
+  sponsor?: string
+  therapeutic_area?: string
+  medical_condition?: string
+  intervention?: string
+  age_range?: string
+  gender?: string
+  countries?: string[]
+  source_id?: string
+  source_url?: string
+}
+
+// Filtered/paginated list envelope from GET /trials.
+export interface TrialPage {
+  items: Trial[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface TrialFacets {
+  diseases: string[]
+  countries: string[]
+  cities: string[]
+  sponsors: string[]
+  phases: string[]
+  statuses: string[]
 }
 
 export interface SupportGroup {
@@ -77,7 +104,7 @@ export interface User {
   display_name: string
   age?: number
   city?: string
-  interests: Disease[]
+  interests: string[]
   created_at: string // ISO
   email?: string
   role?: Role // present on records fetched from the backend; 'user' by default
@@ -112,6 +139,19 @@ export interface SyncStatus {
   last: SyncLog | null
   lastError: SyncLog | null
   recent: SyncLog[]
+  state: {
+    paused: boolean
+    running: boolean
+    interval_hours: number
+    last_run_at: string | null
+    next_run_at: string | null
+  }
+  catalogue: {
+    totalTrials: number
+    diseases: number
+    countries: number
+    supportedDiseaseAreas: number
+  }
 }
 
 // ---- AI feature outputs (validated JSON in the real backend) ----

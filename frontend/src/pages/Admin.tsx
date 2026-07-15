@@ -659,10 +659,44 @@ function AnnouncementsAdmin() {
 // --------------------------------------------------------------------------
 
 function SyncAdmin() {
+  const { toast } = useApp()
   const { data, loading, error, reload } = useAsync(
     () => api.getSyncStatus(),
     []
   )
+  const [busy, setBusy] = useState(false)
+  const [diseases, setDiseases] = useState('')
+  const [countries, setCountries] = useState('')
+
+  const running = data?.state.running
+  const paused = data?.state.paused
+
+  async function run(mode: 'full' | 'incremental', scoped: boolean) {
+    if (busy) return
+    setBusy(true)
+    try {
+      await api.runSync({
+        mode,
+        diseases: scoped ? splitList(diseases) : undefined,
+        countries: scoped ? splitList(countries) : undefined,
+      })
+      toast('Synchronisation started — refresh for progress.', 'success')
+      setTimeout(reload, 1500)
+    } catch {
+      toast('Couldn’t start synchronisation (already running?).', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function toggle(pause: boolean) {
+    try {
+      await (pause ? api.pauseSync() : api.resumeSync())
+      reload()
+    } catch {
+      toast('Couldn’t update the schedule.', 'error')
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -677,36 +711,108 @@ function SyncAdmin() {
       {!loading && error && (
         <ErrorRetry message="Couldn’t load sync status." onRetry={reload} />
       )}
-      {!loading && !error && data && !data.last && (
-        <EmptyState
-          title="No synchronisation yet"
-          body="Run the importer to load real CTIS trials (npm run sync, or the deploy step)."
-        />
-      )}
-      {!loading && !error && data?.last && (
+
+      {!loading && !error && data && (
         <>
+          {/* Catalogue + schedule overview */}
+          <Card className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Metric label="Trials" value={data.catalogue.totalTrials} />
+            <Metric label="Diseases" value={data.catalogue.diseases} />
+            <Metric label="Countries" value={data.catalogue.countries} />
+            <Metric
+              label="Supported"
+              value={data.catalogue.supportedDiseaseAreas}
+            />
+          </Card>
+
+          {/* Controls */}
           <Card className="space-y-3">
-            <div className="flex items-center justify-between">
-              <SyncStatusPill status={data.last.status} />
-              <span className="text-text-muted font-mono text-xs">
-                {data.last.mode} · {timeAgo(data.last.finished_at)}
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                loading={busy}
+                disabled={running}
+                onClick={() => run('full', false)}
+              >
+                Import all Europe
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busy || running}
+                onClick={() => run('incremental', false)}
+              >
+                Incremental sync
+              </Button>
+              <Button
+                size="sm"
+                variant={paused ? 'primary' : 'secondary'}
+                onClick={() => toggle(!paused)}
+              >
+                {paused ? 'Resume schedule' : 'Pause schedule'}
+              </Button>
+              {running && (
+                <span className="text-text-muted font-mono text-xs">
+                  running…
+                </span>
+              )}
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <Metric label="Imported" value={data.last.trials_imported} />
-              <Metric label="Updated" value={data.last.trials_updated} />
-              <Metric label="Skipped" value={data.last.trials_skipped} />
-              <Metric label="Failed" value={data.last.trials_failed} />
-              <Metric label="Seen" value={data.last.trials_seen} />
-              <Metric
-                label="Duration"
-                value={`${(data.last.duration_ms / 1000).toFixed(1)}s`}
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input
+                label="Diseases (comma-separated, optional)"
+                placeholder="e.g. Lung Cancer, Asthma"
+                value={diseases}
+                onChange={(e) => setDiseases(e.target.value)}
+              />
+              <Input
+                label="Countries (comma-separated, optional)"
+                placeholder="e.g. Germany, France"
+                value={countries}
+                onChange={(e) => setCountries(e.target.value)}
               />
             </div>
-            {data.last.message && (
-              <p className="text-text-muted text-xs">{data.last.message}</p>
-            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy || running}
+              onClick={() => run('full', true)}
+            >
+              Force full sync (selected)
+            </Button>
+            <p className="text-text-muted text-xs">
+              Next scheduled sync:{' '}
+              {data.state.next_run_at
+                ? timeAgo(data.state.next_run_at)
+                : 'not scheduled'}{' '}
+              · every {data.state.interval_hours}h{paused ? ' · paused' : ''}
+            </p>
           </Card>
+
+          {/* Last run */}
+          {data.last && (
+            <Card className="space-y-3">
+              <div className="flex items-center justify-between">
+                <SyncStatusPill status={data.last.status} />
+                <span className="text-text-muted font-mono text-xs">
+                  {data.last.mode} · {timeAgo(data.last.finished_at)}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <Metric label="Imported" value={data.last.trials_imported} />
+                <Metric label="Updated" value={data.last.trials_updated} />
+                <Metric label="Skipped" value={data.last.trials_skipped} />
+                <Metric label="Failed" value={data.last.trials_failed} />
+                <Metric label="Seen" value={data.last.trials_seen} />
+                <Metric
+                  label="Duration"
+                  value={`${(data.last.duration_ms / 1000).toFixed(1)}s`}
+                />
+              </div>
+              {data.last.message && (
+                <p className="text-text-muted text-xs">{data.last.message}</p>
+              )}
+            </Card>
+          )}
           {data.lastError && (
             <Card className="border-danger/50">
               <p className="text-danger text-sm font-medium">Last error</p>
@@ -719,6 +825,14 @@ function SyncAdmin() {
       )}
     </div>
   )
+}
+
+function splitList(raw: string): string[] | undefined {
+  const list = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return list.length ? list : undefined
 }
 
 function Metric({ label, value }: { label: string; value: number | string }) {

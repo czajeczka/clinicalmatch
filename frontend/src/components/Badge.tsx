@@ -1,6 +1,6 @@
 import { cn } from '@/lib/cn'
-import type { Disease, TrialStatus } from '@/types'
-import { DISEASE_COLORS } from '@/lib/diseases'
+import type { TrialStatus } from '@/types'
+import { colorForDisease } from '@/lib/diseases'
 import { statusLabel } from '@/lib/format'
 
 /** Recruitment status. Colour is paired with text, never colour-only. */
@@ -24,9 +24,9 @@ export function StatusBadge({ status }: { status: TrialStatus }) {
   )
 }
 
-/** Disease label with its consistent colour accent. */
-export function DiseasePill({ disease }: { disease: Disease }) {
-  const color = DISEASE_COLORS[disease]
+/** Disease label with its consistent colour accent (any disease area). */
+export function DiseasePill({ disease }: { disease: string }) {
+  const color = colorForDisease(disease)
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"

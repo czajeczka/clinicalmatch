@@ -1,4 +1,4 @@
-import type { Disease, User } from '@/types'
+import type { User } from '@/types'
 
 // Device-based anonymous identity (brief: no login, no account recovery).
 // Persisted to localStorage; sent later to the API as an `x-user-id` header.
@@ -40,7 +40,7 @@ export function createUser(input: {
   display_name: string
   age?: number
   city?: string
-  interests: Disease[]
+  interests: string[]
 }): User {
   const user: User = {
     id: generateId(),

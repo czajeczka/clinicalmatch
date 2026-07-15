@@ -11,9 +11,25 @@ import type {
   SyncStatus,
   Trial,
   TrialAnswer,
+  TrialFacets,
+  TrialPage,
   TrialSummary,
   User,
 } from '@/types'
+
+export interface TrialQuery {
+  query?: string
+  disease?: string
+  country?: string
+  city?: string
+  sponsor?: string
+  phase?: string
+  status?: string
+  age?: string
+  sex?: string
+  limit?: number
+  offset?: number
+}
 import { apiClient } from '@/lib/apiClient'
 import { MOCK_TRIALS } from './data'
 
@@ -156,12 +172,33 @@ function qs(params: Record<string, string | undefined>): string {
 
 export const api = {
   // ---- Trials (real) ----
+  // Back-compat: returns just the items array (Home/Profile/Assistant use this).
   getTrials(params?: { query?: string; disease?: Disease | 'all' }) {
     const disease =
       params?.disease && params.disease !== 'all' ? params.disease : undefined
-    return apiClient.get<Trial[]>(
-      `/trials${qs({ query: params?.query, disease })}`
-    )
+    return apiClient
+      .get<TrialPage>(`/trials${qs({ query: params?.query, disease })}`)
+      .then((page) => page.items)
+  },
+  // Full filtered + paginated search (Trials page).
+  getTrialsPage(q: TrialQuery) {
+    const params: Record<string, string | undefined> = {
+      query: q.query,
+      disease: q.disease,
+      country: q.country,
+      city: q.city,
+      sponsor: q.sponsor,
+      phase: q.phase,
+      status: q.status,
+      age: q.age,
+      sex: q.sex,
+      limit: q.limit != null ? String(q.limit) : undefined,
+      offset: q.offset != null ? String(q.offset) : undefined,
+    }
+    return apiClient.get<TrialPage>(`/trials${qs(params)}`)
+  },
+  getFacets() {
+    return apiClient.get<TrialFacets>('/trials/facets')
   },
   getTrial(id: string) {
     return apiClient
@@ -259,7 +296,7 @@ export const api = {
     display_name: string
     age?: number
     city?: string
-    interests: Disease[]
+    interests: string[]
   }) {
     return apiClient.post<User>('/users', user)
   },
@@ -269,7 +306,7 @@ export const api = {
       display_name?: string
       age?: number | null
       city?: string | null
-      interests?: Disease[]
+      interests?: string[]
     }
   ) {
     return apiClient.patch<User>(`/users/${encodeURIComponent(id)}`, patch)
@@ -337,6 +374,19 @@ export const api = {
   },
   getSyncStatus() {
     return apiClient.get<SyncStatus>('/admin/sync')
+  },
+  runSync(body: {
+    mode: 'full' | 'incremental'
+    diseases?: string[]
+    countries?: string[]
+  }) {
+    return apiClient.post<{ started: boolean }>('/admin/sync/run', body)
+  },
+  pauseSync() {
+    return apiClient.post('/admin/sync/pause')
+  },
+  resumeSync() {
+    return apiClient.post('/admin/sync/resume')
   },
   updateReply(id: string, content: string) {
     return apiClient.patch<Reply>(`/replies/${encodeURIComponent(id)}`, {
