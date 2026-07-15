@@ -54,17 +54,25 @@ describe('users endpoints', () => {
     expect(typeof res.body.error).toBe('string')
   })
 
-  it('rejects an invalid interest with 400', async () => {
+  it('accepts free-form interests (platform now covers all disease areas)', async () => {
     const res = await request(app)
       .post('/users')
-      .send({ display_name: 'Nope', interests: ['Not A Disease'] })
-    expect(res.status).toBe(400)
-    expect(res.body.error).toBeTruthy()
+      .send({ display_name: 'Wide', interests: ['Lung Cancer', 'Asthma'] })
+    expect(res.status).toBe(201)
+    expect(res.body.interests).toEqual(['Lung Cancer', 'Asthma'])
   })
 
-  it('rejects an unknown interest filter with 400', async () => {
-    const res = await request(app).get('/users?interest=Flu')
+  it('rejects a malformed (non-string / empty) interest with 400', async () => {
+    const res = await request(app)
+      .post('/users')
+      .send({ display_name: 'Bad', interests: [''] })
     expect(res.status).toBe(400)
+  })
+
+  it('interest filter accepts any disease-area label', async () => {
+    const res = await request(app).get('/users?interest=Lung%20Cancer')
+    expect(res.status).toBe(200)
+    expect(Array.isArray(res.body)).toBe(true)
   })
 })
 

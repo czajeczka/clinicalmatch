@@ -3,15 +3,19 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { db } from '../db/index.js'
 import { rowToUser } from '../db/serialise.js'
-import { diseaseSchema, validateBody } from '../lib/validation.js'
+import { validateBody } from '../lib/validation.js'
 import type { User } from '../types.js'
+
+// Interests are free-form disease-area labels (the platform now covers all CTIS
+// areas, not a fixed five), so we validate shape only, not membership.
+const interestsSchema = z.array(z.string().trim().min(1)).max(50)
 
 const createUserSchema = z.object({
   id: z.string().min(1).optional(),
   display_name: z.string().trim().min(1),
   age: z.number().int().positive().optional(),
   city: z.string().trim().optional(),
-  interests: z.array(diseaseSchema),
+  interests: interestsSchema,
 })
 
 const patchUserSchema = z
@@ -19,7 +23,7 @@ const patchUserSchema = z
     display_name: z.string().trim().min(1),
     age: z.number().int().positive().nullable(),
     city: z.string().trim().nullable(),
-    interests: z.array(diseaseSchema),
+    interests: interestsSchema,
   })
   .partial()
 
@@ -95,9 +99,8 @@ usersRouter.get('/', (req: Request, res: Response) => {
     res.json(rows.map((r) => rowToUser(r as never)))
     return
   }
-  const parsed = diseaseSchema.safeParse(interest)
-  if (!parsed.success) {
-    res.status(400).json({ error: 'Unknown interest' })
+  if (typeof interest !== 'string' || !interest.trim()) {
+    res.status(400).json({ error: 'Invalid interest' })
     return
   }
   // json_each expands the JSON `interests` array so we match exact values.
@@ -106,7 +109,7 @@ usersRouter.get('/', (req: Request, res: Response) => {
       `SELECT DISTINCT u.* FROM users u, json_each(u.interests) je
        WHERE je.value = ? ORDER BY u.created_at DESC`
     )
-    .all(parsed.data)
+    .all(interest.trim())
   res.json(rows.map((r) => rowToUser(r as never)))
 })
 

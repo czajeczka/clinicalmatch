@@ -2,29 +2,17 @@ import { Router, type Request, type Response } from 'express'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { db } from '../db/index.js'
-import { rowToTrial } from '../db/serialise.js'
+import {
+  queryTrials,
+  getTrialById,
+  getFacets,
+  type TrialFilters,
+} from '../db/trials.js'
 import { requireAdmin } from '../middleware/identity.js'
-import { diseaseSchema, validateBody } from '../lib/validation.js'
-import { filterTrials } from './trials.query.js'
-import { DISEASES, type Disease, type Trial } from '../types.js'
+import { validateBody } from '../lib/validation.js'
+import type { Trial } from '../types.js'
 
-function getAllTrials(): Trial[] {
-  return db
-    .prepare('SELECT * FROM trials ORDER BY rowid')
-    .all()
-    .map((r) => rowToTrial(r as never))
-}
-
-function getTrial(id: string): Trial | undefined {
-  const row = db.prepare('SELECT * FROM trials WHERE id = ?').get(id)
-  return row ? rowToTrial(row as never) : undefined
-}
-
-function isDisease(value: string): value is Disease {
-  return (DISEASES as readonly string[]).includes(value)
-}
-
-// ---- Admin write schema ----
+// ---- Admin write schema (disease is free-form now) ----
 
 const centerSchema = z.object({
   name: z.string().trim().min(1),
@@ -34,7 +22,7 @@ const centerSchema = z.object({
 
 const trialBodySchema = z.object({
   title: z.string().trim().min(1),
-  disease: diseaseSchema,
+  disease: z.string().trim().min(1),
   phase: z.string().trim().min(1),
   city: z.string().trim().min(1),
   country: z.string().trim().min(1),
@@ -58,42 +46,73 @@ const writeStmt = db.prepare(`
     @short_description, @full_description, @inclusion_criteria,
     @exclusion_criteria, @centers, @contact_name, @contact_email, @contact_phone)
   ON CONFLICT(id) DO UPDATE SET
-    title = excluded.title, disease = excluded.disease, phase = excluded.phase,
-    city = excluded.city, country = excluded.country, status = excluded.status,
-    short_description = excluded.short_description,
-    full_description = excluded.full_description,
-    inclusion_criteria = excluded.inclusion_criteria,
-    exclusion_criteria = excluded.exclusion_criteria, centers = excluded.centers,
-    contact_name = excluded.contact_name, contact_email = excluded.contact_email,
-    contact_phone = excluded.contact_phone
+    title=excluded.title, disease=excluded.disease, phase=excluded.phase,
+    city=excluded.city, country=excluded.country, status=excluded.status,
+    short_description=excluded.short_description,
+    full_description=excluded.full_description,
+    inclusion_criteria=excluded.inclusion_criteria,
+    exclusion_criteria=excluded.exclusion_criteria, centers=excluded.centers,
+    contact_name=excluded.contact_name, contact_email=excluded.contact_email,
+    contact_phone=excluded.contact_phone
 `)
 
 function writeTrial(trial: Trial): void {
   writeStmt.run({
     ...trial,
+    sponsor: undefined,
+    therapeutic_area: undefined,
+    medical_condition: undefined,
+    intervention: undefined,
+    age_range: undefined,
+    gender: undefined,
+    countries: undefined,
+    source_id: undefined,
+    source_url: undefined,
     inclusion_criteria: JSON.stringify(trial.inclusion_criteria),
     exclusion_criteria: JSON.stringify(trial.exclusion_criteria),
     centers: JSON.stringify(trial.centers),
   })
+  // Keep the country facet in sync for admin-created trials.
+  db.prepare(
+    'INSERT OR IGNORE INTO trial_countries (trial_id, country) VALUES (?, ?)'
+  ).run(trial.id, trial.country)
 }
 
 export const trialsRouter = Router()
 
-// GET /trials?query=&disease=  (public)
+function str(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() ? v.trim() : undefined
+}
+
+// GET /trials — filtered + paginated. Returns { items, total, limit, offset }.
+// Public. Filters combine: query, disease, country, city, sponsor, phase,
+// status, age, sex.
 trialsRouter.get('/', (req: Request, res: Response) => {
-  const query = typeof req.query.query === 'string' ? req.query.query : ''
-  const diseaseParam =
-    typeof req.query.disease === 'string' ? req.query.disease : 'all'
-  // Unknown or missing disease falls back to "all".
-  const disease: Disease | 'all' = isDisease(diseaseParam)
-    ? diseaseParam
-    : 'all'
-  res.json(filterTrials(getAllTrials(), query, disease))
+  const q = req.query
+  const filters: TrialFilters = {
+    query: str(q.query),
+    disease: str(q.disease),
+    country: str(q.country),
+    city: str(q.city),
+    sponsor: str(q.sponsor),
+    phase: str(q.phase),
+    status: str(q.status),
+    sex: str(q.sex),
+    age: q.age !== undefined ? Number(q.age) : undefined,
+  }
+  const limit = Math.min(Math.max(Number(q.limit) || 50, 1), 100)
+  const offset = Math.max(Number(q.offset) || 0, 0)
+  res.json(queryTrials(filters, limit, offset))
+})
+
+// GET /trials/facets — distinct filter options (must precede /:id).
+trialsRouter.get('/facets', (_req: Request, res: Response) => {
+  res.json(getFacets())
 })
 
 // GET /trials/:id  (public)
 trialsRouter.get('/:id', (req: Request<{ id: string }>, res: Response) => {
-  const trial = getTrial(req.params.id)
+  const trial = getTrialById(req.params.id)
   if (!trial) {
     res.status(404).json({ error: 'Trial not found' })
     return
@@ -110,7 +129,7 @@ trialsRouter.post(
     const body = req.body as z.infer<typeof trialBodySchema>
     const trial: Trial = { id: `t-${randomUUID()}`, ...body }
     writeTrial(trial)
-    res.status(201).json(trial)
+    res.status(201).json(getTrialById(trial.id))
   }
 )
 
@@ -120,29 +139,29 @@ trialsRouter.patch(
   requireAdmin,
   validateBody(trialPatchSchema),
   (req: Request<{ id: string }>, res: Response) => {
-    const existing = getTrial(req.params.id)
+    const existing = getTrialById(req.params.id)
     if (!existing) {
       res.status(404).json({ error: 'Trial not found' })
       return
     }
     const patch = req.body as z.infer<typeof trialPatchSchema>
-    const updated: Trial = { ...existing, ...patch }
-    writeTrial(updated)
-    res.json(updated)
+    writeTrial({ ...existing, ...patch })
+    res.json(getTrialById(req.params.id))
   }
 )
 
-// DELETE /trials/:id  (admin) — delete a trial and any saved references.
+// DELETE /trials/:id  (admin) — delete a trial and its references.
 trialsRouter.delete(
   '/:id',
   requireAdmin,
   (req: Request<{ id: string }>, res: Response) => {
-    if (!getTrial(req.params.id)) {
+    if (!getTrialById(req.params.id)) {
       res.status(404).json({ error: 'Trial not found' })
       return
     }
     const tx = db.transaction((id: string) => {
       db.prepare('DELETE FROM saved_trials WHERE trial_id = ?').run(id)
+      db.prepare('DELETE FROM trial_countries WHERE trial_id = ?').run(id)
       db.prepare('DELETE FROM trials WHERE id = ?').run(id)
     })
     tx(req.params.id)

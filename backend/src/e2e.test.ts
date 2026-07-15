@@ -28,12 +28,12 @@ describe('golden path (non-AI)', () => {
     // --- Discover: search + filter ---
     const search = await request(app).get('/trials?query=warsaw')
     expect(search.status).toBe(200)
-    expect(search.body).toHaveLength(1)
-    const trialId = search.body[0].id as string
+    expect(search.body.items).toHaveLength(1)
+    const trialId = search.body.items[0].id as string
 
     const filtered = await request(app).get('/trials?disease=Type 2 Diabetes')
     expect(
-      filtered.body.every(
+      filtered.body.items.every(
         (t: { disease: string }) => t.disease === 'Type 2 Diabetes'
       )
     ).toBe(true)

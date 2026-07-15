@@ -61,33 +61,51 @@ describe('filterTrials (pure)', () => {
 describe('trials endpoints', () => {
   beforeAll(() => seed(db))
 
-  it('GET /trials returns all seeded trials with array fields', async () => {
+  it('GET /trials returns a paginated envelope with array fields', async () => {
     const res = await request(app).get('/trials')
     expect(res.status).toBe(200)
-    expect(res.body).toHaveLength(10)
-    expect(Array.isArray(res.body[0].inclusion_criteria)).toBe(true)
-    expect(Array.isArray(res.body[0].centers)).toBe(true)
+    expect(res.body.total).toBe(10)
+    expect(res.body.items).toHaveLength(10)
+    expect(Array.isArray(res.body.items[0].inclusion_criteria)).toBe(true)
+    expect(Array.isArray(res.body.items[0].centers)).toBe(true)
   })
 
-  it('filters by disease', async () => {
+  it('paginates via limit/offset', async () => {
+    const page = await request(app).get('/trials?limit=4&offset=0')
+    expect(page.body.items).toHaveLength(4)
+    expect(page.body.total).toBe(10)
+    const page2 = await request(app).get('/trials?limit=4&offset=8')
+    expect(page2.body.items).toHaveLength(2)
+  })
+
+  it('filters by disease (exact)', async () => {
     const res = await request(app).get('/trials?disease=Multiple Sclerosis')
     expect(res.status).toBe(200)
-    expect(res.body.length).toBeGreaterThan(0)
+    expect(res.body.items.length).toBeGreaterThan(0)
     expect(
-      res.body.every((t: Trial) => t.disease === 'Multiple Sclerosis')
+      res.body.items.every((t: Trial) => t.disease === 'Multiple Sclerosis')
     ).toBe(true)
   })
 
-  it('narrows by keyword and returns [] for no match', async () => {
+  it('combines filters and narrows by keyword', async () => {
     const warsaw = await request(app).get('/trials?query=warsaw')
-    expect(warsaw.body.length).toBe(1)
+    expect(warsaw.body.items.length).toBe(1)
     const none = await request(app).get('/trials?query=zzz')
-    expect(none.body).toEqual([])
+    expect(none.body.items).toEqual([])
+    expect(none.body.total).toBe(0)
   })
 
-  it('unknown disease filter falls back to all', async () => {
+  it('an unknown disease filter returns no matches (exact filter)', async () => {
     const res = await request(app).get('/trials?disease=Flu')
-    expect(res.body).toHaveLength(10)
+    expect(res.body.items).toHaveLength(0)
+  })
+
+  it('GET /trials/facets returns filter options', async () => {
+    const res = await request(app).get('/trials/facets')
+    expect(res.status).toBe(200)
+    expect(Array.isArray(res.body.diseases)).toBe(true)
+    expect(res.body.diseases.length).toBeGreaterThan(0)
+    expect(Array.isArray(res.body.statuses)).toBe(true)
   })
 
   it('GET /trials/:id returns one trial; unknown id → 404', async () => {
