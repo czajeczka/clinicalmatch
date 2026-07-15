@@ -33,13 +33,32 @@ const schema = z.object({
     emptyToUndefined,
     z.string().default('https://euclinicaltrials.eu/ctis-public-api')
   ),
-  CTIS_PER_DISEASE: z.preprocess(
-    emptyToUndefined,
-    z.coerce.number().int().positive().default(8)
-  ),
   CTIS_TIMEOUT_MS: z.preprocess(
     emptyToUndefined,
     z.coerce.number().int().positive().default(20000)
+  ),
+  // Importer settings (all env-configurable).
+  IMPORT_LIMIT: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().default(8)
+  ), // max trials per disease
+  IMPORT_BATCH_SIZE: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().default(20)
+  ), // CTIS search page size
+  IMPORT_RETRY_COUNT: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().nonnegative().default(2)
+  ),
+  // Comma-separated; empty = all five canonical diseases.
+  IMPORT_DISEASES: z.preprocess(emptyToUndefined, z.string().default('')),
+  // Comma-separated TrialStatus values to keep; empty = all statuses.
+  IMPORT_STATUS: z.preprocess(emptyToUndefined, z.string().default('')),
+  // Cadence hint for a scheduled sync (used by the host cron / docs; the API
+  // process does not run a timer itself).
+  SYNC_INTERVAL_HOURS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().default(24)
   ),
 })
 

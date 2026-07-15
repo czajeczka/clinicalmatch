@@ -96,23 +96,34 @@ CREATE TABLE IF NOT EXISTS sync_logs (
   trials_seen     INTEGER NOT NULL DEFAULT 0,
   trials_imported INTEGER NOT NULL DEFAULT 0,
   trials_updated  INTEGER NOT NULL DEFAULT 0,
+  trials_skipped  INTEGER NOT NULL DEFAULT 0,
   trials_failed   INTEGER NOT NULL DEFAULT 0,
+  duration_ms     INTEGER NOT NULL DEFAULT 0,
   message         TEXT,
   started_at      TEXT NOT NULL,
   finished_at     TEXT NOT NULL
 );
 
+-- Per-trial provenance + richer CTIS fields kept for future AI/RAG use. These
+-- are internal (NOT returned by the trial API), so the frontend is unaffected.
 CREATE TABLE IF NOT EXISTS trial_sync_meta (
-  trial_id          TEXT PRIMARY KEY,
-  source            TEXT NOT NULL DEFAULT 'ctis',
-  ctis_last_updated TEXT,                       -- CTIS "lastUpdated" for incremental diffing
-  imported_at       TEXT NOT NULL
+  trial_id            TEXT PRIMARY KEY,
+  source              TEXT NOT NULL DEFAULT 'ctis',
+  source_id           TEXT,                     -- CTIS ctNumber
+  source_url          TEXT,                     -- public CTIS trial page
+  sponsor             TEXT,
+  recruitment_status  TEXT,                     -- raw CTIS status text
+  countries           TEXT,                     -- json: string[]
+  ctis_last_updated   TEXT,                     -- CTIS "lastUpdated" for incremental diffing
+  imported_at         TEXT NOT NULL
 );
 
 -- TODO: RAG (later seminar) — a protocol_chunks/embeddings table lives here
 -- when the RAG seminar arrives. Intentionally not created now.
 
 CREATE INDEX IF NOT EXISTS idx_trials_disease ON trials (disease);
+CREATE INDEX IF NOT EXISTS idx_trials_status ON trials (status);
+CREATE INDEX IF NOT EXISTS idx_sync_logs_finished ON sync_logs (finished_at DESC);
 CREATE INDEX IF NOT EXISTS idx_discussions_group ON discussions (group_id);
 CREATE INDEX IF NOT EXISTS idx_replies_discussion ON replies (discussion_id);
 CREATE INDEX IF NOT EXISTS idx_saved_user ON saved_trials (user_id);

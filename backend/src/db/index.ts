@@ -31,6 +31,28 @@ export function applySchema(database: DB): void {
   // Role-based access (added later): backfill onto existing users tables.
   ensureColumn(database, 'users', 'email', 'email TEXT')
   ensureColumn(database, 'users', 'role', "role TEXT NOT NULL DEFAULT 'user'")
+  // CTIS importer columns added after the sync tables first shipped.
+  ensureColumn(
+    database,
+    'sync_logs',
+    'trials_skipped',
+    'trials_skipped INTEGER NOT NULL DEFAULT 0'
+  )
+  ensureColumn(
+    database,
+    'sync_logs',
+    'duration_ms',
+    'duration_ms INTEGER NOT NULL DEFAULT 0'
+  )
+  for (const [col, ddl] of [
+    ['source_id', 'source_id TEXT'],
+    ['source_url', 'source_url TEXT'],
+    ['sponsor', 'sponsor TEXT'],
+    ['recruitment_status', 'recruitment_status TEXT'],
+    ['countries', 'countries TEXT'],
+  ]) {
+    ensureColumn(database, 'trial_sync_meta', col, ddl)
+  }
 }
 
 /** Open a database at `path` with sane pragmas (WAL, foreign keys). */
