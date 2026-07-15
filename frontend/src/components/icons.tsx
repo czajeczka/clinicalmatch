@@ -156,6 +156,82 @@ export const InfoIcon = (p: IconProps) => (
     <path d="M12 11v5M12 8h.01" />
   </Base>
 )
+export const ArrowRightIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M5 12h14" />
+    <path d="m13 6 6 6-6 6" />
+  </Base>
+)
+export const ChevronDownIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Base>
+)
+export const GlobeIcon = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18" />
+    <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18Z" />
+  </Base>
+)
+export const FlaskIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M9 3h6" />
+    <path d="M10 3v6l-4.5 8A2 2 0 0 0 7.3 20h9.4a2 2 0 0 0 1.8-3L14 9V3" />
+    <path d="M7.5 15h9" />
+  </Base>
+)
+export const ActivityIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M3 12h4l2.5 7 5-16L17 12h4" />
+  </Base>
+)
+export const SunIcon = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+  </Base>
+)
+export const MoonIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5Z" />
+  </Base>
+)
+export const MonitorIcon = (p: IconProps) => (
+  <Base {...p}>
+    <rect x="3" y="4" width="18" height="12" rx="2" />
+    <path d="M8 20h8M12 16v4" />
+  </Base>
+)
+export const CalendarIcon = (p: IconProps) => (
+  <Base {...p}>
+    <rect x="3.5" y="5" width="17" height="16" rx="2" />
+    <path d="M3.5 9.5h17M8 3v4M16 3v4" />
+  </Base>
+)
+export const PinIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M9 4h6l-1 5 3 3H7l3-3-1-5Z" />
+    <path d="M12 15v5" />
+  </Base>
+)
+export const FlagIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M5 21V4" />
+    <path d="M5 4h11l-2 3.5L16 11H5" />
+  </Base>
+)
+export const ChatIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M20 15a2 2 0 0 1-2 2H9l-4 3v-3H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2Z" />
+  </Base>
+)
+export const TrendingIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="m3 17 6-6 4 4 8-8" />
+    <path d="M17 7h4v4" />
+  </Base>
+)
 export const LogoMark = (p: IconProps) => (
   <svg viewBox="0 0 64 64" width="28" height="28" fill="none" {...p}>
     <path

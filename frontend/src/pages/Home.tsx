@@ -1,10 +1,12 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Header } from '@/layout/Header'
+import { DashboardTopBar } from '@/layout/DashboardTopBar'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 import { TrialCard } from '@/components/TrialCard'
 import { StatTile } from '@/components/StatTile'
+import { FeatureCard } from '@/components/FeatureCard'
+import { MedicalIllustration } from '@/components/MedicalIllustration'
 import { DashboardSection } from '@/components/DashboardSection'
 import { SkeletonCard } from '@/components/Skeleton'
 import { EmptyState } from '@/components/EmptyState'
@@ -17,6 +19,10 @@ import {
   UsersIcon,
   HeartIcon,
   MapPinIcon,
+  ActivityIcon,
+  GlobeIcon,
+  FlaskIcon,
+  ShieldIcon,
 } from '@/components/icons'
 import { timeAgo } from '@/lib/format'
 import { useAsync } from '@/hooks/useAsync'
@@ -58,10 +64,34 @@ async function buildRecommendations(
   return pool
 }
 
+interface PlatformStats {
+  totalTrials: number
+  recruiting: number
+  countries: number
+  diseases: number
+}
+
+/** Live platform statistics for the hero — derived from the existing trials +
+ *  facets endpoints (no new API). `total` counts come back from the paginated
+ *  list without fetching the rows themselves (limit 1). */
+async function loadPlatformStats(): Promise<PlatformStats> {
+  const [all, recruiting, facets] = await Promise.all([
+    api.getTrialsPage({ limit: 1 }),
+    api.getTrialsPage({ status: 'recruiting', limit: 1 }),
+    api.getFacets(),
+  ])
+  return {
+    totalTrials: all.total,
+    recruiting: recruiting.total,
+    countries: facets.countries.length,
+    diseases: facets.diseases.length,
+  }
+}
+
 const HERO_BG: CSSProperties = {
   background:
-    'radial-gradient(38rem 22rem at 15% -20%, color-mix(in oklab, var(--color-primary) 16%, transparent), transparent 70%),' +
-    'radial-gradient(30rem 20rem at 100% 0%, color-mix(in oklab, var(--color-secondary) 14%, transparent), transparent 70%)',
+    'radial-gradient(42rem 24rem at 12% -30%, color-mix(in oklab, var(--color-primary) 18%, transparent), transparent 70%),' +
+    'radial-gradient(34rem 22rem at 108% 0%, color-mix(in oklab, var(--color-secondary) 16%, transparent), transparent 70%)',
 }
 
 export function Home() {
@@ -73,6 +103,7 @@ export function Home() {
 
   const saved = useAsync(() => api.getSavedTrials(), [savedTrialIds.length])
   const notifications = useAsync(() => api.getNotifications(), [])
+  const stats = useAsync(() => loadPlatformStats(), [])
   const rec = useAsync(
     () => buildRecommendations(interests, savedTrialIds),
     [interests.join('|'), savedTrialIds.length]
@@ -98,34 +129,90 @@ export function Home() {
   const toTrials = (params: Record<string, string>) =>
     navigate(`/trials?${new URLSearchParams(params).toString()}`)
 
+  const s = stats.data
+
   return (
     <div>
-      <Header title="Dashboard" />
-      <div className="animate-fade-in space-y-7 px-4 py-4 pb-8">
-        {/* Welcome */}
+      <DashboardTopBar
+        notifications={notifications.data ?? []}
+        onNotificationsChange={notifications.reload}
+      />
+
+      <div className="animate-fade-in space-y-8 px-4 py-5 pb-10">
+        {/* Hero */}
         <section
-          className="border-border relative overflow-hidden rounded-[var(--radius-card)] border p-5 shadow-[var(--shadow-card)] sm:p-6"
+          className="border-border relative overflow-hidden rounded-[var(--radius-card)] border p-5 shadow-[var(--shadow-card)] sm:p-7"
           style={HERO_BG}
         >
-          <h1 className="font-display text-text text-2xl font-semibold sm:text-3xl">
-            Welcome back, {name}
-          </h1>
-          <p className="text-text-muted mt-1.5 max-w-lg text-sm leading-relaxed">
-            {interests.length > 0
-              ? 'Here are recruiting European trials for the conditions you follow, plus your saved studies and recent activity.'
-              : 'Add a few conditions to your profile and we’ll tailor trial recommendations to you.'}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button className="px-5" onClick={() => navigate('/trials')}>
-              Find trials
-            </Button>
-            <Button variant="secondary" onClick={() => navigate('/assistant')}>
-              Eligibility self-check
-            </Button>
+          <div className="items-center gap-6 md:grid md:grid-cols-[1.5fr_1fr]">
+            <div>
+              <span className="border-border bg-surface/70 text-text-muted inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium backdrop-blur">
+                <span
+                  className="bg-accent h-1.5 w-1.5 rounded-full"
+                  aria-hidden
+                />
+                Real European trials · powered by CTIS
+              </span>
+              <h1 className="font-display text-text mt-4 text-2xl leading-tight font-semibold tracking-tight text-balance sm:text-[2rem]">
+                Welcome back, {name}
+              </h1>
+              <p className="text-text-muted mt-2 max-w-lg text-sm leading-relaxed sm:text-[15px]">
+                {interests.length > 0
+                  ? 'Here are recruiting European trials for the conditions you follow, plus your saved studies and recent activity.'
+                  : 'Add a few conditions to your profile and we’ll tailor trial recommendations to you.'}
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2.5">
+                <Button className="px-5" onClick={() => navigate('/trials')}>
+                  Find trials
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => navigate('/assistant')}
+                >
+                  Eligibility self-check
+                </Button>
+              </div>
+            </div>
+
+            <div className="hidden md:block">
+              <MedicalIllustration className="mx-auto h-auto w-full max-w-[300px]" />
+            </div>
+          </div>
+
+          {/* Live platform statistics */}
+          <div className="border-border/60 mt-6 grid grid-cols-2 gap-3 border-t pt-6 sm:grid-cols-4">
+            <HeroStat
+              icon={<FlaskIcon className="h-[18px] w-[18px]" />}
+              value={s?.totalTrials}
+              label="Active trials"
+              loading={stats.loading}
+              error={!!stats.error}
+            />
+            <HeroStat
+              icon={<ActivityIcon className="h-[18px] w-[18px]" />}
+              value={s?.recruiting}
+              label="Recruiting now"
+              loading={stats.loading}
+              error={!!stats.error}
+            />
+            <HeroStat
+              icon={<GlobeIcon className="h-[18px] w-[18px]" />}
+              value={s?.countries}
+              label="Countries"
+              loading={stats.loading}
+              error={!!stats.error}
+            />
+            <HeroStat
+              icon={<SparkIcon className="h-[18px] w-[18px]" />}
+              value={s?.diseases}
+              label="Disease areas"
+              loading={stats.loading}
+              error={!!stats.error}
+            />
           </div>
         </section>
 
-        {/* Quick statistics */}
+        {/* Your activity */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatTile
             label="Saved trials"
@@ -151,27 +238,36 @@ export function Home() {
           />
         </div>
 
-        {/* Search shortcuts */}
+        {/* Quick actions */}
         <DashboardSection title="Quick actions">
-          <div className="grid grid-cols-3 gap-3">
-            <QuickAction
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <FeatureCard
+              tone="primary"
               icon={<SearchIcon className="h-5 w-5" />}
-              label="Find trials"
+              title="Find trials"
+              description="Search recruiting European studies by condition, country and phase."
               onClick={() => navigate('/trials')}
             />
-            <QuickAction
+            <FeatureCard
+              tone="accent"
               icon={<SparkIcon className="h-5 w-5" />}
-              label="Self-check"
+              title="Eligibility self-check"
+              description="See who a study is for in plain language — informational only."
               onClick={() => navigate('/assistant')}
             />
-            <QuickAction
+            <FeatureCard
+              tone="secondary"
               icon={<UsersIcon className="h-5 w-5" />}
-              label="Support"
+              title="Communities"
+              description="Connect with people navigating the same condition."
               onClick={() => navigate('/support')}
             />
           </div>
           {interests.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="text-text-muted mr-1 text-xs font-medium">
+                Jump back in
+              </span>
               {interests.map((d) => (
                 <ShortcutChip
                   key={d}
@@ -185,7 +281,14 @@ export function Home() {
         </DashboardSection>
 
         {/* Recommendations */}
-        <DashboardSection title="Recommended for you">
+        <DashboardSection
+          title="Recommended for you"
+          action={
+            recommendations.length > 0
+              ? { label: 'Browse all', onClick: () => navigate('/trials') }
+              : undefined
+          }
+        >
           {rec.loading ? (
             <CardGridSkeleton />
           ) : rec.error ? (
@@ -208,7 +311,7 @@ export function Home() {
               </p>
             )
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {recommendations.map((t) => (
                 <TrialCard
                   key={t.id}
@@ -226,7 +329,7 @@ export function Home() {
             title="Continue browsing"
             action={{ label: 'Browse all', onClick: () => navigate('/trials') }}
           >
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5">
               {recent.slice(0, 4).map((t) => (
                 <Card
                   key={t.id}
@@ -270,7 +373,7 @@ export function Home() {
               onAction={() => navigate('/trials')}
             />
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {savedPreview.map((t) => (
                 <TrialCard
                   key={t.id}
@@ -287,7 +390,7 @@ export function Home() {
           title="Your preferences"
           action={{ label: 'Edit', onClick: () => navigate('/profile') }}
         >
-          <Card className="space-y-4">
+          <Card className="grid gap-5 sm:grid-cols-2">
             <div>
               <p className="text-text-muted mb-2 font-mono text-xs uppercase">
                 Preferred conditions
@@ -340,7 +443,7 @@ export function Home() {
               Couldn’t load recent updates right now.
             </p>
           ) : notifications.data && notifications.data.length > 0 ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5">
               {notifications.data.slice(0, 4).map((n) => (
                 <Card
                   key={n.id}
@@ -373,6 +476,49 @@ export function Home() {
             <p className="text-text-muted text-sm">Nothing new right now.</p>
           )}
         </DashboardSection>
+
+        {/* Safety framing — informational only, never medical advice. */}
+        <p className="text-text-muted flex items-center justify-center gap-1.5 pt-1 text-center text-xs">
+          <ShieldIcon className="h-3.5 w-3.5 shrink-0" />
+          Informational only — never medical advice. Final eligibility is
+          decided by the trial investigators.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function HeroStat({
+  icon,
+  value,
+  label,
+  loading,
+  error,
+}: {
+  icon: ReactNode
+  value?: number
+  label: string
+  loading: boolean
+  error: boolean
+}) {
+  return (
+    <div className="border-border bg-surface/70 flex items-center gap-3 rounded-[var(--radius-control)] border p-3 backdrop-blur">
+      <span className="bg-primary/10 text-primary grid h-9 w-9 shrink-0 place-items-center rounded-[10px]">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <div className="font-display text-text text-xl leading-none font-semibold">
+          {loading ? (
+            <span className="bg-text/10 inline-block h-5 w-10 animate-pulse rounded" />
+          ) : error || value == null ? (
+            '—'
+          ) : (
+            value.toLocaleString()
+          )}
+        </div>
+        <p className="text-text-muted mt-1 truncate text-xs font-medium">
+          {label}
+        </p>
       </div>
     </div>
   )
@@ -380,32 +526,10 @@ export function Home() {
 
 function CardGridSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <SkeletonCard />
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <SkeletonCard />
       <SkeletonCard />
     </div>
-  )
-}
-
-function QuickAction({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: ReactNode
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="border-border bg-surface text-text flex flex-col items-center gap-2 rounded-[var(--radius-card)] border p-4 text-sm font-medium shadow-[var(--shadow-card)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-pop)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
-    >
-      <span className="text-primary">{icon}</span>
-      {label}
-    </button>
   )
 }
 
