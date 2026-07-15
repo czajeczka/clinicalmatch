@@ -13,7 +13,7 @@ export function AppShell() {
   const location = useLocation()
 
   if (!user) {
-    return <Navigate to="/onboarding" replace state={{ from: location }} />
+    return <Navigate to="/welcome" replace state={{ from: location }} />
   }
 
   return (

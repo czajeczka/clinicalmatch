@@ -7,15 +7,17 @@ describe('App', () => {
     localStorage.clear()
   })
 
-  it('renders onboarding on first run (no device identity yet)', async () => {
+  it('renders the landing page on first run (no device identity yet)', async () => {
     render(<App />)
-    // The whole provider + router + shell tree mounts without throwing;
-    // with no saved user we land on onboarding.
+    // The whole provider + router + shell tree mounts without throwing; with no
+    // saved user the app shows the public landing page (which leads to onboarding).
     expect(
-      await screen.findByRole('heading', { name: /welcome/i })
+      await screen.findByRole('heading', {
+        name: /find the right clinical trial/i,
+      })
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: /continue/i })
-    ).toBeInTheDocument()
+      screen.getAllByRole('button', { name: /get started/i }).length
+    ).toBeGreaterThan(0)
   })
 })

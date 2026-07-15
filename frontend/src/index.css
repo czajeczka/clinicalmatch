@@ -113,6 +113,37 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Subtle, tasteful entrance micro-interactions. Disabled by the
+   reduced-motion rule below, so they never harm accessibility. */
+@keyframes cm-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes cm-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-up {
+  animation: cm-fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-fade-in {
+  animation: cm-fade-in 0.4s ease-out both;
+}
+/* Stagger helper for lists/hero elements (set --cm-delay inline). */
+.cm-delay {
+  animation-delay: var(--cm-delay, 0ms);
+}
+
 /* Respect reduced-motion for all transitions/animations */
 @media (prefers-reduced-motion: reduce) {
   *,

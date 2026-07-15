@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Header } from '@/layout/Header'
 import { Input, Select } from '@/components/Field'
@@ -11,6 +11,19 @@ import { SearchIcon, CloseIcon } from '@/components/icons'
 import { useAsync } from '@/hooks/useAsync'
 import { useDebounced } from '@/hooks/useDebounced'
 import { api } from '@/mock/mockApi'
+import type { TrialFacets } from '@/types'
+
+type SuggestKey = 'disease' | 'country' | 'city' | 'sponsor'
+interface Suggestion {
+  key: SuggestKey
+  label: string
+}
+const SUGGEST_LABELS: Record<SuggestKey, string> = {
+  disease: 'Disease',
+  country: 'Country',
+  city: 'City',
+  sponsor: 'Sponsor',
+}
 
 const PAGE_SIZE = 24
 
@@ -85,28 +98,18 @@ export function Trials() {
     <div>
       <Header title="Clinical Trials" />
       <div className="space-y-3 px-4 pt-4">
-        <div className="relative">
-          <Input
-            aria-label="Search trials"
-            placeholder="Search trials, conditions, cities…"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value)
-              setOffset(0)
-            }}
-            className="pr-10"
-          />
-          {query && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onClick={() => setQuery('')}
-              className="text-text-muted hover:text-text absolute top-2.5 right-2 grid h-8 w-8 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
-            >
-              <CloseIcon className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+        <SearchBox
+          query={query}
+          facets={facets}
+          onQueryChange={(v) => {
+            setQuery(v)
+            setOffset(0)
+          }}
+          onPick={(key, value) => {
+            setQuery('')
+            setFilter(key, value)
+          }}
+        />
 
         {/* Combinable filters (options from the live catalogue) */}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -260,5 +263,145 @@ function FacetSelect({
         </option>
       ))}
     </Select>
+  )
+}
+
+/**
+ * Accessible search combobox with autocomplete. Suggestions are drawn from the
+ * live facets (diseases / countries / cities / sponsors); picking one applies
+ * that filter, while free text stays as a keyword query. Follows the WAI-ARIA
+ * combobox pattern (roles, aria-activedescendant, arrow/enter/escape keys).
+ */
+function SearchBox({
+  query,
+  facets,
+  onQueryChange,
+  onPick,
+}: {
+  query: string
+  facets: TrialFacets | null | undefined
+  onQueryChange: (v: string) => void
+  onPick: (key: SuggestKey, value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(-1)
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const suggestions = useMemo<Suggestion[]>(() => {
+    const q = query.trim().toLowerCase()
+    if (q.length < 2 || !facets) return []
+    const match = (list?: string[]) =>
+      (list ?? []).filter((l) => l.toLowerCase().includes(q))
+    const out: Suggestion[] = [
+      ...match(facets.diseases)
+        .slice(0, 3)
+        .map((label) => ({ key: 'disease' as const, label })),
+      ...match(facets.countries)
+        .slice(0, 2)
+        .map((label) => ({ key: 'country' as const, label })),
+      ...match(facets.cities)
+        .slice(0, 3)
+        .map((label) => ({ key: 'city' as const, label })),
+      ...match(facets.sponsors)
+        .slice(0, 2)
+        .map((label) => ({ key: 'sponsor' as const, label })),
+    ]
+    return out.slice(0, 8)
+  }, [query, facets])
+
+  const showList = open && suggestions.length > 0
+
+  function choose(s: Suggestion) {
+    onPick(s.key, s.label)
+    setOpen(false)
+    setActive(-1)
+  }
+
+  return (
+    <div className="relative">
+      <SearchIcon
+        className="text-text-muted pointer-events-none absolute top-3 left-3 h-4 w-4"
+        aria-hidden
+      />
+      <Input
+        role="combobox"
+        aria-expanded={showList}
+        aria-controls="trials-suggestions"
+        aria-autocomplete="list"
+        aria-activedescendant={active >= 0 ? `trials-sug-${active}` : undefined}
+        aria-label="Search trials"
+        placeholder="Search trials, conditions, cities…"
+        value={query}
+        onChange={(e) => {
+          onQueryChange(e.target.value)
+          setOpen(true)
+          setActive(-1)
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => {
+          blurTimer.current = setTimeout(() => setOpen(false), 120)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            setOpen(true)
+            setActive((a) => Math.min(a + 1, suggestions.length - 1))
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            setActive((a) => Math.max(a - 1, 0))
+          } else if (e.key === 'Enter' && showList && active >= 0) {
+            e.preventDefault()
+            choose(suggestions[active])
+          } else if (e.key === 'Escape') {
+            setOpen(false)
+            setActive(-1)
+          }
+        }}
+        className="pr-10 pl-9"
+      />
+      {query && (
+        <button
+          type="button"
+          aria-label="Clear search"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            onQueryChange('')
+            setOpen(false)
+          }}
+          className="text-text-muted hover:text-text absolute top-2.5 right-2 grid h-8 w-8 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
+      )}
+      {showList && (
+        <ul
+          id="trials-suggestions"
+          role="listbox"
+          aria-label="Search suggestions"
+          className="border-border bg-surface animate-fade-in absolute z-30 mt-1 max-h-72 w-full overflow-auto rounded-[var(--radius-control)] border py-1 shadow-[var(--shadow-pop)]"
+        >
+          {suggestions.map((s, i) => (
+            <li
+              key={`${s.key}-${s.label}`}
+              id={`trials-sug-${i}`}
+              role="option"
+              aria-selected={i === active}
+              onMouseDown={(e) => e.preventDefault()}
+              onMouseEnter={() => setActive(i)}
+              onClick={() => choose(s)}
+              className={
+                'flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-sm ' +
+                (i === active ? 'bg-primary/10 text-text' : 'text-text')
+              }
+            >
+              <span className="truncate">{s.label}</span>
+              <span className="text-text-muted shrink-0 font-mono text-[10px] tracking-wide uppercase">
+                {SUGGEST_LABELS[s.key]}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }

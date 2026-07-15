@@ -11,12 +11,14 @@ import { Board } from '@/pages/Board'
 import { Thread } from '@/pages/Thread'
 import { Profile } from '@/pages/Profile'
 import { Admin } from '@/pages/Admin'
+import { Landing } from '@/pages/Landing'
 
 export default function App() {
   return (
     <AppProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/welcome" element={<Landing />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route element={<AppShell />}>
             <Route index element={<Home />} />

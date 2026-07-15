@@ -35,7 +35,7 @@ export function Card({
       className={cn(
         'border-border bg-surface rounded-[var(--radius-card)] border p-4 shadow-[var(--shadow-card)]',
         interactive &&
-          'cursor-pointer transition-shadow hover:shadow-[var(--shadow-pop)]',
+          'cursor-pointer transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-pop)]',
         clickable &&
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]',
         className
