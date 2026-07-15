@@ -1,4 +1,5 @@
 import { db as singleton, type DB } from './index.js'
+import { config } from '../config.js'
 import { migrate } from './migrate.js'
 import {
   ADMIN_USER,
@@ -10,12 +11,23 @@ import {
 } from './seed-data.js'
 
 /**
- * Load the fictional catalogue. Idempotent: clears the seeded content tables
- * and reinserts, so re-running always yields the same state. User-generated
- * tables (users, saved_trials, group_memberships) are left untouched.
+ * Load the seed content. Idempotent: clears the seeded content tables and
+ * reinserts. User-generated tables (users, saved_trials, memberships) are left
+ * untouched.
+ *
+ * PRODUCTION uses REAL CTIS trials, never the fictional catalogue — so in
+ * production the fictional trials are NOT seeded and the `trials` table is left
+ * entirely to the importer (it is neither cleared nor written here). The
+ * community scaffolding (groups/discussions/replies/notifications) and the admin
+ * account are still seeded in every environment. Local dev + tests
+ * (NODE_ENV !== 'production') seed the fictional trials as before.
  */
-export function seed(database: DB = singleton): void {
+export function seed(
+  database: DB = singleton,
+  opts?: { seedTrials?: boolean }
+): void {
   migrate(database)
+  const seedTrials = opts?.seedTrials ?? config.NODE_ENV !== 'production'
 
   const insertTrial = database.prepare(`
     INSERT INTO trials (id, title, disease, phase, city, country, status,
@@ -59,23 +71,28 @@ export function seed(database: DB = singleton): void {
 
   const run = database.transaction(() => {
     upsertAdmin.run(ADMIN_USER)
-    for (const table of [
+    // Community/content tables are always reseeded; `trials` is only cleared +
+    // seeded outside production (production leaves it to the CTIS importer).
+    const tables = [
       'notifications',
       'replies',
       'discussions',
       'support_groups',
-      'trials',
-    ]) {
+      ...(seedTrials ? ['trials'] : []),
+    ]
+    for (const table of tables) {
       database.prepare(`DELETE FROM ${table}`).run()
     }
 
-    for (const t of SEED_TRIALS) {
-      insertTrial.run({
-        ...t,
-        inclusion_criteria: JSON.stringify(t.inclusion_criteria),
-        exclusion_criteria: JSON.stringify(t.exclusion_criteria),
-        centers: JSON.stringify(t.centers),
-      })
+    if (seedTrials) {
+      for (const t of SEED_TRIALS) {
+        insertTrial.run({
+          ...t,
+          inclusion_criteria: JSON.stringify(t.inclusion_criteria),
+          exclusion_criteria: JSON.stringify(t.exclusion_criteria),
+          centers: JSON.stringify(t.centers),
+        })
+      }
     }
     for (const g of SEED_GROUPS) {
       insertGroup.run(g)
@@ -106,8 +123,12 @@ export function seed(database: DB = singleton): void {
 // `npm run seed` runs this module directly.
 if (import.meta.url === `file://${process.argv[1]}`) {
   seed()
+  const trials =
+    config.NODE_ENV === 'production'
+      ? 'no fictional trials (production uses CTIS)'
+      : `${SEED_TRIALS.length} trials`
   console.log(
-    `Seeded ${SEED_TRIALS.length} trials, ${SEED_GROUPS.length} groups, ` +
+    `Seeded ${trials}, ${SEED_GROUPS.length} groups, ` +
       `${SEED_DISCUSSIONS.length} discussions, ${SEED_REPLIES.length} replies.`
   )
 }

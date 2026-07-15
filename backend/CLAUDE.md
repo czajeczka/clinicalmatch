@@ -217,9 +217,12 @@ for future AI/RAG use — internal only, so the `Trial` API shape is unchanged.
 Production always uses CTIS data. On deploy: `docker compose up -d --build`
 (startup runs `applySchema`, which creates/migrates the sync tables + columns),
 then seed the community/admin (`node dist/db/seed.js`) and run the importer
-(`node dist/sync/run.js full`). The fictional trial seed is **dev/test only**;
-in production the full import replaces it. Refresh later with
-`node dist/sync/run.js incremental` on a schedule.
+(`node dist/sync/run.js full`). **`seed` is environment-aware**: with
+`NODE_ENV=production` it seeds only the community scaffolding (groups /
+discussions / replies / notifications) + the admin account and **does not touch
+the `trials` table at all** — the fictional catalogue is dev/test only, and
+trials are owned exclusively by the CTIS importer in production. Refresh later
+with `node dist/sync/run.js incremental` on a schedule.
 
 Tests: `ctisMapper.test.ts` (classification/normalisation/mapping + fallback +
 source meta), `ctisClient.test.ts` (retry: transient→retry, 5xx→give up, 4xx→no
