@@ -161,127 +161,138 @@ export async function runImport(opts?: {
   let skipped = 0
   let failed = 0
   let detailFallbacks = 0
+  let areasFailed = 0
   const errors: string[] = []
   const seenIds = new Set<string>()
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
   db.prepare('UPDATE sync_state SET running = 1 WHERE id = 1').run()
 
   try {
     for (const area of areas) {
-      const term = queryFor(area)
-      let page = 1
-      let gathered = 0
-      while (gathered < limit) {
-        const response = await client.search(term, page, batchSize)
-        const data = (response.data ?? []) as CtisSearchRecord[]
-        if (data.length === 0) break
+      try {
+        const term = queryFor(area)
+        let page = 1
+        let gathered = 0
+        while (gathered < limit) {
+          const response = await client.search(term, page, batchSize)
+          const data = (response.data ?? []) as CtisSearchRecord[]
+          if (data.length === 0) break
 
-        // Process this page as one transaction (batching + bounded memory).
-        const applyPage = db.transaction((records: CtisSearchRecord[]) => {
-          for (const record of records) {
-            if (gathered >= limit) break
-            const id = String(record.ctNumber ?? '')
-            if (!id || seenIds.has(id)) continue
-            seenIds.add(id)
-            seen++
-            gathered++
-            // detail fetch is awaited outside the tx (see below) — here we only
-            // persist. Detail is attached on the record object as __detail.
-            const detail = (record as { __detail?: unknown }).__detail ?? null
-            const trial = mapCtisTrial({
-              search: record,
-              detail,
-              disease: area.label,
-            })
-            if (!trial) {
-              failed++
-              continue
-            }
-            if (!statuses.includes(trial.status)) {
-              skipped++
-              continue
-            }
-            if (
-              countryFilter.size > 0 &&
-              !(trial.countries ?? []).some((c) =>
-                countryFilter.has(c.toLowerCase())
-              )
-            ) {
-              skipped++
-              continue
-            }
-            if (mode === 'incremental') {
-              const existing = p.metaGet.get(id) as { lu: string } | undefined
+          // Process this page as one transaction (batching + bounded memory).
+          const applyPage = db.transaction((records: CtisSearchRecord[]) => {
+            for (const record of records) {
+              if (gathered >= limit) break
+              const id = String(record.ctNumber ?? '')
+              if (!id || seenIds.has(id)) continue
+              seenIds.add(id)
+              seen++
+              gathered++
+              // detail fetch is awaited outside the tx (see below) — here we only
+              // persist. Detail is attached on the record object as __detail.
+              const detail = (record as { __detail?: unknown }).__detail ?? null
+              const trial = mapCtisTrial({
+                search: record,
+                detail,
+                disease: area.label,
+              })
+              if (!trial) {
+                failed++
+                continue
+              }
+              if (!statuses.includes(trial.status)) {
+                skipped++
+                continue
+              }
               if (
-                existing &&
-                existing.lu === String(record.lastUpdated ?? '')
+                countryFilter.size > 0 &&
+                !(trial.countries ?? []).some((c) =>
+                  countryFilter.has(c.toLowerCase())
+                )
               ) {
                 skipped++
                 continue
               }
+              if (mode === 'incremental') {
+                const existing = p.metaGet.get(id) as { lu: string } | undefined
+                if (
+                  existing &&
+                  existing.lu === String(record.lastUpdated ?? '')
+                ) {
+                  skipped++
+                  continue
+                }
+              }
+              const existed = p.exists.get(id)
+              const { min, max } = parseAgeRange(trial.age_range)
+              p.upsert.run({
+                id: trial.id,
+                title: trial.title,
+                disease: trial.disease,
+                phase: trial.phase,
+                city: trial.city,
+                country: trial.country,
+                status: trial.status,
+                short_description: trial.short_description,
+                full_description: trial.full_description,
+                inclusion_criteria: JSON.stringify(trial.inclusion_criteria),
+                exclusion_criteria: JSON.stringify(trial.exclusion_criteria),
+                centers: JSON.stringify(trial.centers),
+                contact_name: trial.contact_name,
+                contact_email: trial.contact_email,
+                contact_phone: trial.contact_phone,
+                sponsor_id: trial.sponsor
+                  ? upsertSponsor(trial.sponsor, db)
+                  : null,
+                therapeutic_area: trial.therapeutic_area ?? null,
+                medical_condition: trial.medical_condition ?? null,
+                intervention: trial.intervention ?? null,
+                age_range: trial.age_range ?? null,
+                age_min: min,
+                age_max: max,
+                gender: trial.gender ?? null,
+                source_id: trial.source_id ?? null,
+                source_url: trial.source_url ?? null,
+              })
+              p.delCountries.run(id)
+              for (const c of trial.countries ?? [])
+                p.insCountry.run({ trial_id: id, country: c })
+              p.metaUpsert.run({
+                trial_id: id,
+                lu: String(record.lastUpdated ?? ''),
+                now: runStamp,
+              })
+              if (existed) updated++
+              else imported++
             }
-            const existed = p.exists.get(id)
-            const { min, max } = parseAgeRange(trial.age_range)
-            p.upsert.run({
-              id: trial.id,
-              title: trial.title,
-              disease: trial.disease,
-              phase: trial.phase,
-              city: trial.city,
-              country: trial.country,
-              status: trial.status,
-              short_description: trial.short_description,
-              full_description: trial.full_description,
-              inclusion_criteria: JSON.stringify(trial.inclusion_criteria),
-              exclusion_criteria: JSON.stringify(trial.exclusion_criteria),
-              centers: JSON.stringify(trial.centers),
-              contact_name: trial.contact_name,
-              contact_email: trial.contact_email,
-              contact_phone: trial.contact_phone,
-              sponsor_id: trial.sponsor
-                ? upsertSponsor(trial.sponsor, db)
-                : null,
-              therapeutic_area: trial.therapeutic_area ?? null,
-              medical_condition: trial.medical_condition ?? null,
-              intervention: trial.intervention ?? null,
-              age_range: trial.age_range ?? null,
-              age_min: min,
-              age_max: max,
-              gender: trial.gender ?? null,
-              source_id: trial.source_id ?? null,
-              source_url: trial.source_url ?? null,
-            })
-            p.delCountries.run(id)
-            for (const c of trial.countries ?? [])
-              p.insCountry.run({ trial_id: id, country: c })
-            p.metaUpsert.run({
-              trial_id: id,
-              lu: String(record.lastUpdated ?? ''),
-              now: runStamp,
-            })
-            if (existed) updated++
-            else imported++
-          }
-        })
+          })
 
-        // Fetch details for this page (best-effort) before persisting.
-        for (const record of data) {
-          const id = String(record.ctNumber ?? '')
-          if (!id || seenIds.has(id)) continue
-          try {
-            ;(record as { __detail?: unknown }).__detail =
-              await client.retrieve(id)
-          } catch (e) {
-            detailFallbacks++
-            errors.push(`detail ${id}: ${errMsg(e)}`)
+          // Fetch details for this page (best-effort) before persisting.
+          // A short delay keeps us under CTIS's burst rate limit.
+          for (const record of data) {
+            const id = String(record.ctNumber ?? '')
+            if (!id || seenIds.has(id)) continue
+            try {
+              ;(record as { __detail?: unknown }).__detail =
+                await client.retrieve(id)
+            } catch (e) {
+              detailFallbacks++
+              errors.push(`detail ${id}: ${errMsg(e)}`)
+            }
+            await sleep(120)
           }
+          applyPage(data)
+
+          if (!response.pagination?.nextPage) break
+          page++
         }
-        applyPage(data)
-
-        if (!response.pagination?.nextPage) break
-        page++
+        log(`${area.label}: gathered ${gathered}`)
+      } catch (e) {
+        // A per-area failure (e.g. a persistent rate-limit) is isolated: log it
+        // and continue with the other areas. Already-imported data persists.
+        areasFailed++
+        errors.push(`area ${area.label}: ${errMsg(e)}`)
       }
-      log(`${area.label}: gathered ${gathered}`)
     }
 
     // Full-mode sweep: remove CTIS-sourced trials not touched this run (i.e.
@@ -293,7 +304,12 @@ export async function runImport(opts?: {
           'CTIS returned no records; existing catalogue left unchanged'
         )
       }
-      // Only sweep within the disease areas imported this run, so a scoped
+    }
+    // Only sweep on a fully-successful full run — if any area failed (e.g. a
+    // rate-limit), skip the sweep so we don't remove trials whose fresh data we
+    // simply couldn't fetch this run.
+    if (mode === 'full' && areasFailed === 0) {
+      // Scope the sweep to the disease areas imported this run, so a scoped
       // full import can't wipe trials from other diseases.
       const labels = areas.map((a) => a.label)
       const placeholders = labels.map(() => '?').join(', ')
@@ -320,7 +336,9 @@ export async function runImport(opts?: {
 
     const durationMs = Date.now() - startedMs
     const status: ImportResult['status'] =
-      failed > 0 || detailFallbacks > 0 ? 'partial' : 'success'
+      areasFailed > 0 || failed > 0 || detailFallbacks > 0
+        ? 'partial'
+        : 'success'
     const message =
       `${mode}: ${imported} imported, ${updated} updated, ${skipped} skipped, ` +
       `${removed} removed, ${failed} failed, ${detailFallbacks} detail fallback(s) ` +

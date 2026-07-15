@@ -83,7 +83,9 @@ export function createCtisClient(opts?: {
       }
       try {
         const res = await once(path, init)
-        if (res.status >= 500 || res.status === 429) {
+        // 403 is CTIS's rate-limit/WAF response under bursty load — treat as
+        // transient (retry with backoff) alongside 5xx/429.
+        if (res.status >= 500 || res.status === 429 || res.status === 403) {
           lastErr = new Error(`transient HTTP ${res.status}`)
           continue
         }
