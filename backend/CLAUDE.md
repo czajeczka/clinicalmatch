@@ -242,7 +242,7 @@ partial/error against a fake client + in-memory DB).
   Indexes on disease, status, city, country, phase, sponsor_id, and
   trial_countries(country).
 - **Filtering + pagination**: `GET /trials?query&disease&country&city&sponsor&
-  phase&status&age&sex&limit&offset` — all combine (AND), index-backed SQL, and
+phase&status&age&sex&limit&offset` — all combine (AND), index-backed SQL, and
   return `{ items, total, limit, offset }`. `GET /trials/facets` returns the
   distinct filter options (diseases/countries/cities/sponsors/phases/statuses)
   that drive the frontend dropdowns dynamically.
