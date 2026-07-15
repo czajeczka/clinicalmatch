@@ -24,7 +24,10 @@ export function Assistant() {
 
   const [tool, setTool] = useState<Tool>('check')
   // GET /trials for the selector (api → backend)
-  const { data: trials } = useAsync(() => api.getTrials(), [])
+  const { data: trials, loading: trialsLoading } = useAsync(
+    () => api.getTrials(),
+    []
+  )
 
   return (
     <div>
@@ -45,12 +48,14 @@ export function Assistant() {
         {tool === 'check' ? (
           <SelfCheck
             trials={trials ?? []}
+            trialsLoading={trialsLoading}
             preselectTrial={preselectTrial}
             online={online}
           />
         ) : (
           <AskTrial
             trials={trials ?? []}
+            trialsLoading={trialsLoading}
             preselectTrial={preselectTrial}
             online={online}
           />
@@ -62,11 +67,17 @@ export function Assistant() {
 
 interface ToolProps {
   trials: { id: string; title: string }[]
+  trialsLoading: boolean
   preselectTrial?: string
   online: boolean
 }
 
-function SelfCheck({ trials, preselectTrial, online }: ToolProps) {
+function SelfCheck({
+  trials,
+  trialsLoading,
+  preselectTrial,
+  online,
+}: ToolProps) {
   const [trialId, setTrialId] = useState(preselectTrial ?? '')
   const [age, setAge] = useState('')
   const [gender, setGender] = useState<Gender | ''>('')
@@ -88,10 +99,13 @@ function SelfCheck({ trials, preselectTrial, online }: ToolProps) {
         <Select
           label="Trial"
           required
+          disabled={trialsLoading}
           value={trialId}
           onChange={(e) => setTrialId(e.target.value)}
         >
-          <option value="">Choose a trial…</option>
+          <option value="">
+            {trialsLoading ? 'Loading trials…' : 'Choose a trial…'}
+          </option>
           {trials.map((t) => (
             <option key={t.id} value={t.id}>
               {t.title}
@@ -196,7 +210,12 @@ function SelfCheck({ trials, preselectTrial, online }: ToolProps) {
   )
 }
 
-function AskTrial({ trials, preselectTrial, online }: ToolProps) {
+function AskTrial({
+  trials,
+  trialsLoading,
+  preselectTrial,
+  online,
+}: ToolProps) {
   const [trialId, setTrialId] = useState(preselectTrial ?? '')
   const [question, setQuestion] = useState('')
   const ask = useAiAction((id: string, q: string) => api.askTrial(id, q))
@@ -208,10 +227,13 @@ function AskTrial({ trials, preselectTrial, online }: ToolProps) {
         <Select
           label="Trial"
           required
+          disabled={trialsLoading}
           value={trialId}
           onChange={(e) => setTrialId(e.target.value)}
         >
-          <option value="">Choose a trial…</option>
+          <option value="">
+            {trialsLoading ? 'Loading trials…' : 'Choose a trial…'}
+          </option>
           {trials.map((t) => (
             <option key={t.id} value={t.id}>
               {t.title}

@@ -14,6 +14,11 @@ import { useAsync } from '@/hooks/useAsync'
 import { api } from '@/mock/mockApi'
 import { useApp } from '@/store/store'
 
+// Shared focus ring for the inline text buttons (Edit/Delete), matching the
+// rest of the design system's focus-visible treatment.
+const inlineBtn =
+  'rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]'
+
 export function Thread() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
@@ -25,13 +30,16 @@ export function Thread() {
     error,
     reload: reloadDiscussion,
   } = useAsync(() => api.getDiscussion(id), [id])
-  const { data: replies, reload: reloadReplies } = useAsync(
-    () => api.getReplies(id),
-    [id]
-  )
+  const {
+    data: replies,
+    error: repliesError,
+    reload: reloadReplies,
+  } = useAsync(() => api.getReplies(id), [id])
 
   const [reply, setReply] = useState('')
+  const [sending, setSending] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [editContent, setEditContent] = useState('')
   const [confirmDelete, setConfirmDelete] = useState<
@@ -82,15 +90,23 @@ export function Thread() {
 
   function submitReply() {
     const content = reply.trim()
-    if (!content) return
-    setReply('')
+    if (!content || sending) return
+    // Keep the draft until the post succeeds, so a failure never loses text.
+    setSending(true)
     api
       .createReply(discussion!.id, content)
-      .then(() => reloadReplies())
+      .then(() => {
+        setReply('')
+        reloadReplies()
+        toast('Reply posted', 'success')
+      })
       .catch(() => toast('Couldn’t post your reply.', 'error'))
+      .finally(() => setSending(false))
   }
 
   function saveEdit() {
+    if (savingEdit) return
+    setSavingEdit(true)
     api
       .updateDiscussion(discussion!.id, {
         title: editTitle.trim() || undefined,
@@ -102,11 +118,17 @@ export function Thread() {
         toast('Post updated', 'success')
       })
       .catch(() => toast('Couldn’t update the post.', 'error'))
+      .finally(() => setSavingEdit(false))
   }
 
   return (
     <div>
-      <Header title="Discussion" back display={false} />
+      <Header
+        title="Discussion"
+        back
+        display={false}
+        heading={!discussion.title}
+      />
 
       <div className="space-y-4 px-4 py-4 pb-28">
         {/* Original post */}
@@ -134,6 +156,8 @@ export function Thread() {
                 <Button
                   size="sm"
                   disabled={!editContent.trim()}
+                  loading={savingEdit}
+                  loadingLabel="Saving…"
                   onClick={saveEdit}
                 >
                   Save
@@ -164,7 +188,7 @@ export function Thread() {
                 {ownPost && (
                   <span className="flex gap-3">
                     <button
-                      className="text-primary"
+                      className={`text-primary ${inlineBtn}`}
                       onClick={() => {
                         setEditTitle(discussion.title ?? '')
                         setEditContent(discussion.content)
@@ -174,7 +198,7 @@ export function Thread() {
                       Edit
                     </button>
                     <button
-                      className="text-danger"
+                      className={`text-danger ${inlineBtn}`}
                       onClick={() => setConfirmDelete({ kind: 'post' })}
                     >
                       Delete
@@ -188,10 +212,22 @@ export function Thread() {
 
         {/* Replies */}
         <div>
-          <h2 className="text-text-muted mb-2 px-1 font-mono text-xs uppercase">
-            {replyList.length} {replyList.length === 1 ? 'reply' : 'replies'}
-          </h2>
-          {replyList.length === 0 ? (
+          {!repliesError && (
+            <h2 className="text-text-muted mb-2 px-1 font-mono text-xs uppercase">
+              {replyList.length} {replyList.length === 1 ? 'reply' : 'replies'}
+            </h2>
+          )}
+          {repliesError ? (
+            <p className="text-text-muted px-1 text-sm">
+              Couldn’t load replies.{' '}
+              <button
+                className="text-primary rounded-sm underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
+                onClick={reloadReplies}
+              >
+                Try again
+              </button>
+            </p>
+          ) : replyList.length === 0 ? (
             <p className="text-text-muted px-1 text-sm">
               No replies yet — start the conversation.
             </p>
@@ -208,7 +244,7 @@ export function Thread() {
                     </span>
                     {isOwn(r.author_id) && (
                       <button
-                        className="text-danger"
+                        className={`text-danger ${inlineBtn}`}
                         onClick={() =>
                           setConfirmDelete({ kind: 'reply', replyId: r.id })
                         }
@@ -225,12 +261,13 @@ export function Thread() {
       </div>
 
       {/* Reply composer */}
-      <div className="border-border bg-bg/90 fixed inset-x-0 bottom-16 z-20 border-t px-4 py-3 backdrop-blur-md lg:bottom-0">
-        <div className="mx-auto flex max-w-3xl gap-2">
-          <Input
+      <div className="border-border bg-bg/90 fixed inset-x-0 bottom-16 z-20 border-t px-4 py-3 backdrop-blur-md lg:bottom-0 lg:left-60">
+        <div className="mx-auto flex max-w-3xl items-end gap-2">
+          <Textarea
             aria-label="Write a reply"
-            placeholder="Write a reply…"
+            placeholder="Write a reply…  (Enter to send, Shift+Enter for a new line)"
             value={reply}
+            rows={1}
             onChange={(e) => setReply(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -238,9 +275,14 @@ export function Thread() {
                 submitReply()
               }
             }}
-            className="flex-1"
+            className="max-h-32 flex-1 !min-h-11"
           />
-          <Button disabled={!reply.trim()} onClick={submitReply}>
+          <Button
+            disabled={!reply.trim()}
+            loading={sending}
+            loadingLabel="Sending…"
+            onClick={submitReply}
+          >
             Reply
           </Button>
         </div>

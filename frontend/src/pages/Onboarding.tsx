@@ -22,13 +22,18 @@ export function Onboarding() {
   const [city, setCity] = useState('')
   const [interests, setInterests] = useState<Disease[]>([])
 
-  const ageNum = age ? Number(age) : undefined
+  const ageNum = age.trim() === '' ? undefined : Number(age)
+  // Backend accepts a positive integer only; mirror that so the fire-and-forget
+  // POST /users doesn't silently 400 on a decimal/negative age.
+  const ageValid =
+    ageNum === undefined ||
+    (Number.isInteger(ageNum) && ageNum > 0 && ageNum < 130)
   const nameValid = name.trim().length > 0
 
   function finish(withInterests: Disease[]) {
     const user = createUser({
       display_name: name,
-      age: Number.isFinite(ageNum) ? ageNum : undefined,
+      age: ageValid ? ageNum : undefined,
       city,
       interests: withInterests,
     })
@@ -96,10 +101,11 @@ export function Onboarding() {
               label="Age"
               type="number"
               inputMode="numeric"
-              min={0}
+              min={1}
               value={age}
               onChange={(e) => setAge(e.target.value)}
               placeholder="Optional"
+              error={!ageValid ? 'Enter a whole number.' : undefined}
             />
             <Input
               label="City"
@@ -109,7 +115,11 @@ export function Onboarding() {
             />
           </div>
           <div className="mt-auto pt-8">
-            <Button fullWidth disabled={!nameValid} onClick={() => setStep(1)}>
+            <Button
+              fullWidth
+              disabled={!nameValid || !ageValid}
+              onClick={() => setStep(1)}
+            >
               Continue
             </Button>
           </div>
@@ -118,6 +128,12 @@ export function Onboarding() {
 
       {step === 1 && (
         <div className="flex flex-1 flex-col">
+          <button
+            onClick={() => setStep(0)}
+            className="text-text-muted hover:text-text mb-3 self-start rounded-sm text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
+          >
+            ← Back
+          </button>
           <h1 className="font-display text-text text-2xl font-semibold">
             What matters to you?
           </h1>

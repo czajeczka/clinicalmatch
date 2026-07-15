@@ -1,8 +1,12 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Header } from '@/layout/Header'
 import { Card, SectionTitle } from '@/components/Card'
 import { TrialCard } from '@/components/TrialCard'
 import { Chip } from '@/components/Chip'
+import { Button } from '@/components/Button'
+import { Input } from '@/components/Field'
+import { BottomSheet } from '@/components/BottomSheet'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { EmptyState } from '@/components/EmptyState'
 import { HeartIcon, UsersIcon } from '@/components/icons'
@@ -10,30 +14,38 @@ import { useAsync } from '@/hooks/useAsync'
 import { useTheme, type Theme } from '@/hooks/useTheme'
 import { api } from '@/mock/mockApi'
 import { useApp } from '@/store/store'
-import { saveUser } from '@/lib/identity'
 import { DISEASES, type Disease } from '@/lib/diseases'
+
+const inlineBtn =
+  'rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]'
 
 export function Profile() {
   const navigate = useNavigate()
   const { user, setUser, savedTrialIds, joinedGroupIds, toggleJoin, toast } =
     useApp()
   const [theme, setTheme] = useTheme()
+  const [editOpen, setEditOpen] = useState(false)
 
-  const { data: trials } = useAsync(() => api.getTrials(), [])
-  const { data: groups } = useAsync(() => api.getGroups(), [])
-
-  const saved = (trials ?? []).filter((t) => savedTrialIds.includes(t.id))
-  const joined = (groups ?? []).filter((g) => joinedGroupIds.includes(g.id))
+  // Dedicated endpoints (not the whole catalogue); refetch when the counts
+  // change so leaving a community / un-saving reflects immediately.
+  const { data: savedData } = useAsync(
+    () => api.getSavedTrials(),
+    [savedTrialIds.length]
+  )
+  const { data: joinedData } = useAsync(
+    () => api.getMemberships(),
+    [joinedGroupIds.length]
+  )
+  const saved = savedData ?? []
+  const joined = joinedData ?? []
 
   function toggleInterest(d: Disease) {
     if (!user) return
     const next = user.interests.includes(d)
       ? user.interests.filter((x) => x !== d)
       : [...user.interests, d]
-    const updated = { ...user, interests: next }
-    saveUser(updated)
-    setUser(updated)
-    // Persist to the backend so interest-based matching stays in sync.
+    setUser({ ...user, interests: next }) // setUser persists to localStorage
+    // Keep interest-based matching in sync on the backend.
     void api.patchUser(user.id, { interests: next }).catch(() => {})
   }
 
@@ -46,18 +58,29 @@ export function Profile() {
           <div className="bg-secondary/15 text-secondary font-display grid h-14 w-14 place-items-center rounded-full text-xl font-semibold">
             {(user?.display_name ?? '?').charAt(0).toUpperCase()}
           </div>
-          <div className="flex-1">
-            <p className="font-display text-text text-lg font-semibold">
+          <div className="min-w-0 flex-1">
+            <p className="font-display text-text truncate text-lg font-semibold">
               {user?.display_name}
             </p>
-            {user?.city && (
-              <p className="text-text-muted text-sm">{user.city}</p>
-            )}
+            <p className="text-text-muted truncate text-sm">
+              {[user?.city, user?.age ? `${user.age}` : null]
+                .filter(Boolean)
+                .join(' · ') || 'Tap Edit to add your details'}
+            </p>
           </div>
-          <div className="flex gap-4 text-center">
-            <Stat label="Saved" value={savedTrialIds.length} />
-            <Stat label="Groups" value={joinedGroupIds.length} />
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setEditOpen(true)}
+            aria-haspopup="dialog"
+          >
+            Edit
+          </Button>
+        </Card>
+
+        <Card className="flex justify-around">
+          <Stat label="Saved" value={savedTrialIds.length} />
+          <Stat label="Groups" value={joinedGroupIds.length} />
         </Card>
 
         {/* Saved trials */}
@@ -105,7 +128,7 @@ export function Profile() {
                 >
                   <span className="text-text font-medium">{g.name}</span>
                   <button
-                    className="text-text-muted text-sm"
+                    className={`text-text-muted hover:text-text px-2 py-1 text-sm ${inlineBtn}`}
                     onClick={(e) => {
                       e.stopPropagation()
                       toggleJoin(g.id, g.name)
@@ -154,7 +177,7 @@ export function Profile() {
               Signed in on this device only. Clearing browser data starts a new
               identity (no account recovery in this version).
               <button
-                className="text-primary ml-1 underline"
+                className={`text-primary ml-1 underline ${inlineBtn}`}
                 onClick={() =>
                   toast('This is a demo setting — no email is sent.', 'info')
                 }
@@ -165,13 +188,103 @@ export function Profile() {
           </Card>
         </section>
       </div>
+
+      {user && editOpen && (
+        <EditProfileSheet
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          user={user}
+          onSave={(patch) => {
+            setUser({ ...user, ...patch })
+            void api
+              .patchUser(user.id, {
+                display_name: patch.display_name,
+                age: patch.age ?? null,
+                city: patch.city ?? null,
+              })
+              .catch(() => {})
+            toast('Profile updated', 'success')
+            setEditOpen(false)
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+function EditProfileSheet({
+  open,
+  onClose,
+  user,
+  onSave,
+}: {
+  open: boolean
+  onClose: () => void
+  user: { display_name: string; age?: number; city?: string }
+  onSave: (patch: { display_name: string; age?: number; city?: string }) => void
+}) {
+  const [name, setName] = useState(user.display_name)
+  const [age, setAge] = useState(user.age ? String(user.age) : '')
+  const [city, setCity] = useState(user.city ?? '')
+
+  const nameValid = name.trim().length > 0
+  const ageValid =
+    age.trim() === '' ||
+    (Number.isInteger(Number(age)) && Number(age) > 0 && Number(age) < 130)
+  const canSave = nameValid && ageValid
+
+  if (!open) return null
+  return (
+    <BottomSheet open={open} onClose={onClose} title="Edit profile">
+      <div className="space-y-4">
+        <Input
+          label="Display name"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          error={!nameValid ? 'A display name is required.' : undefined}
+        />
+        <Input
+          label="Age"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          value={age}
+          onChange={(e) => setAge(e.target.value)}
+          placeholder="Optional"
+          error={!ageValid ? 'Enter a whole number.' : undefined}
+        />
+        <Input
+          label="City"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          placeholder="Optional"
+        />
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!canSave}
+            onClick={() =>
+              onSave({
+                display_name: name.trim(),
+                age: age.trim() === '' ? undefined : Number(age),
+                city: city.trim() || undefined,
+              })
+            }
+          >
+            Save
+          </Button>
+        </div>
+      </div>
+    </BottomSheet>
   )
 }
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div>
+    <div className="text-center">
       <p className="font-display text-text text-xl font-semibold">{value}</p>
       <p className="text-text-muted font-mono text-xs uppercase">{label}</p>
     </div>

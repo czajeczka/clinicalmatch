@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Header } from '@/layout/Header'
 import { Button } from '@/components/Button'
@@ -39,6 +39,16 @@ export function TrialDetail() {
   const ask = useAiAction((q: string) => api.askTrial(id, q))
   const [question, setQuestion] = useState('')
 
+  // Clear per-trial AI results + the question when navigating to another trial,
+  // so trial B never briefly shows trial A's summary/answer.
+  useEffect(() => {
+    summary.reset()
+    criteria.reset()
+    ask.reset()
+    setQuestion('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
   if (loading) {
     return (
       <div>
@@ -74,6 +84,7 @@ export function TrialDetail() {
         title={trial.disease}
         back
         display={false}
+        heading={false}
         actions={
           <IconButton
             label={saved ? 'Remove from saved' : 'Save trial'}
@@ -185,7 +196,7 @@ export function TrialDetail() {
                 Couldn’t simplify the criteria right now — the original text is
                 shown above.{' '}
                 <button
-                  className="text-primary underline"
+                  className="text-primary rounded-sm underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
                   onClick={() => criteria.run()}
                 >
                   Try again
@@ -242,7 +253,7 @@ export function TrialDetail() {
             <p className="text-text mt-3 text-sm">
               The assistant couldn’t answer right now.{' '}
               <button
-                className="text-primary underline"
+                className="text-primary rounded-sm underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
                 onClick={() => ask.run(question.trim())}
               >
                 Try again
@@ -266,7 +277,7 @@ export function TrialDetail() {
             <SectionTitle>Participating centres</SectionTitle>
             <ul className="space-y-2">
               {trial.centers.map((c) => (
-                <li key={c.name} className="text-sm">
+                <li key={`${c.name}-${c.city}`} className="text-sm">
                   <span className="text-text font-medium">{c.name}</span>
                   <span className="text-text-muted">
                     {' '}
@@ -302,7 +313,7 @@ export function TrialDetail() {
       </div>
 
       {/* Sticky action bar */}
-      <div className="border-border bg-bg/90 fixed inset-x-0 bottom-16 z-20 border-t px-4 py-3 backdrop-blur-md lg:bottom-0">
+      <div className="border-border bg-bg/90 fixed inset-x-0 bottom-16 z-20 border-t px-4 py-3 backdrop-blur-md lg:bottom-0 lg:left-60">
         <div className="mx-auto max-w-3xl">
           <Button
             fullWidth

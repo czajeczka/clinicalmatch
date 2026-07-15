@@ -57,8 +57,9 @@ export function Board() {
     )
   }
 
+  // Open the composer without side effects; joining happens on publish so a
+  // user who cancels isn't silently enrolled in the community.
   function startDiscussion() {
-    if (!joined) toggleJoin(group!.id, group!.name)
     setComposeOpen(true)
   }
 
@@ -114,7 +115,7 @@ export function Board() {
         type="button"
         onClick={startDiscussion}
         aria-label="Start a discussion"
-        className="bg-accent hover:bg-accent-hover fixed right-4 bottom-20 z-20 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-[var(--shadow-pop)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)] lg:bottom-6"
+        className="bg-accent hover:bg-accent-hover fixed right-4 bottom-20 z-20 flex h-14 w-14 items-center justify-center rounded-full text-[var(--color-on-accent)] shadow-[var(--shadow-pop)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)] lg:bottom-6"
       >
         <PlusIcon className="h-6 w-6" />
       </button>
@@ -124,7 +125,11 @@ export function Board() {
         onClose={() => setComposeOpen(false)}
         groupId={group.id}
         groupName={group.name}
-        onPublished={reload}
+        onPublished={() => {
+          // Publishing your first post also joins the community.
+          if (!joined) toggleJoin(group.id, group.name)
+          reload()
+        }}
       />
     </div>
   )

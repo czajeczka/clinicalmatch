@@ -20,7 +20,8 @@ const base =
   'disabled:cursor-not-allowed disabled:opacity-50'
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-accent text-white hover:bg-accent-hover active:bg-accent-hover',
+  primary:
+    'bg-accent text-[var(--color-on-accent)] hover:bg-accent-hover active:bg-accent-hover',
   secondary:
     'border border-primary text-primary bg-transparent hover:bg-primary/5 active:bg-primary/10',
   ghost: 'text-primary hover:bg-primary/5 active:bg-primary/10',

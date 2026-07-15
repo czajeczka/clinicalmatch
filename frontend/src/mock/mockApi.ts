@@ -229,7 +229,9 @@ export const api = {
     return apiClient.get<Trial[]>('/saved-trials')
   },
   saveTrial(trialId: string) {
-    return apiClient.post('/saved-trials', { trial_id: trialId })
+    return apiClient.post<{ id: string }>('/saved-trials', {
+      trial_id: trialId,
+    })
   },
   unsaveTrial(trialId: string) {
     return apiClient.delete<void>(
@@ -242,7 +244,9 @@ export const api = {
     return apiClient.get<SupportGroup[]>('/memberships')
   },
   joinGroup(groupId: string) {
-    return apiClient.post('/memberships', { group_id: groupId })
+    return apiClient.post<{ id: string }>('/memberships', {
+      group_id: groupId,
+    })
   },
   leaveGroup(groupId: string) {
     return apiClient.delete<void>(`/memberships/${encodeURIComponent(groupId)}`)
@@ -273,6 +277,12 @@ export const api = {
   // ---- Notifications (real) ----
   getNotifications() {
     return apiClient.get<AppNotification[]>('/notifications')
+  },
+  markNotificationRead(id: string) {
+    return apiClient.patch<AppNotification>(
+      `/notifications/${encodeURIComponent(id)}`,
+      { read: true }
+    )
   },
 
   // ---- AI features (MOCKED — deferred) --------------------------------------

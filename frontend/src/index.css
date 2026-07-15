@@ -19,8 +19,13 @@
   --color-primary: #0c6b60; /* deep teal — trust */
   --color-primary-hover: #0a5a51;
   --color-secondary: #6e74c9; /* periwinkle — community */
-  --color-accent: #1e9e7e; /* spring green — CTAs */
-  --color-accent-hover: #188468;
+  /* spring green — CTAs. Deepened so white text clears WCAG AA (5.3:1);
+     the lighter brand green stays as a decorative accent where needed. */
+  --color-accent: #157a5f;
+  --color-accent-hover: #12715c;
+  /* Text/icon colour that sits on an accent-filled surface (primary button,
+     FAB). Flips to dark in dark mode where the accent is a bright green. */
+  --color-on-accent: #ffffff;
 
   /* Surfaces & text */
   --color-bg: #edf2f0; /* cool pale sage */
@@ -31,9 +36,10 @@
   --color-text-muted: #5a6b65;
   --color-text-inverse: #ffffff;
 
-  /* Semantic (state) — error is NEVER used for the "unlikely" verdict */
-  --color-success: #1e9e7e;
-  --color-warning: #c98a2b;
+  /* Semantic (state) — error is NEVER used for the "unlikely" verdict.
+     success/warning deepened so badge text clears AA on their tinted pills. */
+  --color-success: #16765e;
+  --color-warning: #8d611e;
   --color-danger: #b4453c;
   --color-focus: #6e74c9;
 
@@ -70,6 +76,11 @@
     --color-primary: #2a9d8f;
     --color-accent: #35c79f;
     --color-accent-hover: #2fae8c;
+    /* Bright accent in dark mode → dark text sits on it legibly (8:1). */
+    --color-on-accent: #0f1b18;
+    /* Lighter state hues so badge text reads on dark tinted pills. */
+    --color-success: #35c79f;
+    --color-warning: #e0a94a;
   }
 }
 :root[data-theme='dark'] {
@@ -82,6 +93,9 @@
   --color-primary: #2a9d8f;
   --color-accent: #35c79f;
   --color-accent-hover: #2fae8c;
+  --color-on-accent: #0f1b18;
+  --color-success: #35c79f;
+  --color-warning: #e0a94a;
 }
 
 html,

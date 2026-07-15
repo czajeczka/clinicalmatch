@@ -27,6 +27,7 @@ export function Toasts() {
       {toasts.map((t) => (
         <div
           key={t.id}
+          role={t.kind === 'error' ? 'alert' : undefined}
           className={cn(
             'bg-surface text-text pointer-events-auto flex w-full max-w-sm items-center gap-2.5 rounded-[var(--radius-control)] border px-3.5 py-3 shadow-[var(--shadow-pop)]',
             KIND_STYLES[t.kind]
@@ -38,7 +39,7 @@ export function Toasts() {
             type="button"
             aria-label="Dismiss"
             onClick={() => dismissToast(t.id)}
-            className="text-text-muted hover:text-text"
+            className="text-text-muted hover:text-text rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
           >
             <CloseIcon className="h-4 w-4" />
           </button>

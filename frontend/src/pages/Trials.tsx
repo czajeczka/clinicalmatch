@@ -7,7 +7,7 @@ import { TrialCard } from '@/components/TrialCard'
 import { SkeletonList } from '@/components/Skeleton'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorRetry } from '@/components/ErrorRetry'
-import { SearchIcon } from '@/components/icons'
+import { SearchIcon, CloseIcon } from '@/components/icons'
 import { DISEASES, type Disease } from '@/lib/diseases'
 import { useAsync } from '@/hooks/useAsync'
 import { useDebounced } from '@/hooks/useDebounced'
@@ -31,12 +31,25 @@ export function Trials() {
     <div>
       <Header title="Clinical Trials" />
       <div className="px-4 pt-4">
-        <Input
-          aria-label="Search trials"
-          placeholder="Search trials, conditions, cities…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div className="relative">
+          <Input
+            aria-label="Search trials"
+            placeholder="Search trials, conditions, cities…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pr-10"
+          />
+          {query && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setQuery('')}
+              className="text-text-muted hover:text-text absolute top-2.5 right-2 grid h-8 w-8 place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]"
+            >
+              <CloseIcon className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         <div
           className="mt-3 flex gap-2 overflow-x-auto pb-1"
           role="group"
@@ -82,15 +95,26 @@ export function Trials() {
         )}
 
         {!loading && !error && data && data.length > 0 && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {data.map((trial) => (
-              <TrialCard
-                key={trial.id}
-                trial={trial}
-                onOpen={(t) => navigate(`/trials/${t.id}`)}
-              />
-            ))}
-          </div>
+          <>
+            <p className="text-text-muted mb-3 text-sm" aria-live="polite">
+              {data.length} {data.length === 1 ? 'trial' : 'trials'}
+              {filtered ? ' found' : ''}
+            </p>
+            <div
+              className={
+                'grid grid-cols-1 gap-3 transition-opacity sm:grid-cols-2 lg:grid-cols-3 ' +
+                (query !== debouncedQuery ? 'opacity-60' : '')
+              }
+            >
+              {data.map((trial) => (
+                <TrialCard
+                  key={trial.id}
+                  trial={trial}
+                  onOpen={(t) => navigate(`/trials/${t.id}`)}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>
