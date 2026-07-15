@@ -13,7 +13,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "migrate": "tsx src/db/migrate.ts",
-    "seed": "tsx src/db/seed.ts"
+    "seed": "tsx src/db/seed.ts",
+    "sync": "tsx src/sync/run.ts full",
+    "sync:incremental": "tsx src/sync/run.ts incremental"
   },
   "keywords": [],
   "author": "",

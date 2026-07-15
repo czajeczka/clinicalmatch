@@ -208,7 +208,14 @@ Done vs. deferred as of the current chunks (12/12):
   "unlikely" verdict is neutral grey, never red.
 - **Backend** — full non-AI REST API (users, trials, saved, groups,
   memberships, discussions, replies, notifications), plus an admin surface;
-  59 backend tests + an e2e flow.
+  69 backend tests + an e2e flow.
+- **Real trial data (CTIS)** — a backend-only synchronisation service
+  (`backend/src/sync/`) imports real active European trials from the EU
+  Clinical Trials Information System public API, maps them into the existing
+  `Trial` model, and stores them in SQLite with sync logs + error handling.
+  Full and incremental modes (`npm run sync` / `sync:incremental`). API
+  endpoints and the frontend are unchanged; the fictional seed stays for
+  tests/local. See `backend/CLAUDE.md` § Data source.
 - **Admin role** — two roles (`user`/`admin`); one predefined admin (Oliwia
   Czajka, `u-admin`) seeded. Admin can create/edit/delete trials, support
   groups, and announcements, and moderate any discussion/reply. Enforced by

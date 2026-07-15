@@ -86,6 +86,29 @@ CREATE TABLE IF NOT EXISTS notifications (
   read       INTEGER NOT NULL DEFAULT 0 -- 0 | 1
 );
 
+-- Synchronisation with external trial registries (CTIS). One row per import
+-- run for observability; per-trial provenance lives in trial_sync_meta.
+CREATE TABLE IF NOT EXISTS sync_logs (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  source          TEXT NOT NULL DEFAULT 'ctis',
+  mode            TEXT NOT NULL,               -- 'full' | 'incremental'
+  status          TEXT NOT NULL,               -- 'success' | 'partial' | 'error'
+  trials_seen     INTEGER NOT NULL DEFAULT 0,
+  trials_imported INTEGER NOT NULL DEFAULT 0,
+  trials_updated  INTEGER NOT NULL DEFAULT 0,
+  trials_failed   INTEGER NOT NULL DEFAULT 0,
+  message         TEXT,
+  started_at      TEXT NOT NULL,
+  finished_at     TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS trial_sync_meta (
+  trial_id          TEXT PRIMARY KEY,
+  source            TEXT NOT NULL DEFAULT 'ctis',
+  ctis_last_updated TEXT,                       -- CTIS "lastUpdated" for incremental diffing
+  imported_at       TEXT NOT NULL
+);
+
 -- TODO: RAG (later seminar) — a protocol_chunks/embeddings table lives here
 -- when the RAG seminar arrives. Intentionally not created now.
 

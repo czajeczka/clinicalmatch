@@ -40,7 +40,11 @@ npm run lint         # oxlint
 npm run format       # prettier --write .
 npm run migrate      # apply schema.sql (idempotent)
 npm run seed         # load the fictional catalogue (idempotent, re-runnable)
+npm run sync             # CTIS FULL import — replace the trials catalogue with real data
+npm run sync:incremental # CTIS incremental — upsert only new/changed trials
 ```
+
+In the production image (no tsx): `node dist/sync/run.js full|incremental`.
 
 Env: copy `.env.example` → `.env`. Vars: `PORT` (3001), `CORS_ORIGIN`
 (`http://localhost:5173`), `NODE_ENV`, and `DB_PATH`
@@ -112,6 +116,51 @@ Seeded IDs match the frontend (`t-001…`, `g-bc…`, `d-001…`, `r-001…`) so
 frontend connects seamlessly. `npm run seed` is idempotent (clears + reinserts
 the seeded content tables; leaves user data alone). No `protocol_chunks` /
 embeddings table — that belongs to the deferred RAG seminar.
+
+Two more tables back the CTIS importer (below): **`sync_logs`** (one row per
+import run — mode/status/counts/message/timestamps) and **`trial_sync_meta`**
+(per-trial provenance + CTIS `lastUpdated`, used for incremental diffing). Both
+are internal — never returned by the trial API.
+
+## Data source: CTIS synchronisation (real trial data)
+
+Real trials come from the **EU Clinical Trials Information System (CTIS)** public
+API (`https://euclinicaltrials.eu/ctis-public-api`). Fetching happens **only in
+the backend** — the frontend still calls the same unchanged `/trials` endpoints.
+The fictional `seed` catalogue remains for tests/local dev; production replaces
+it by running the importer.
+
+Pipeline (`src/sync/`), each layer independently testable:
+
+- **`ctisClient.ts`** — thin HTTP client: `search(term,page,size)` (`POST
+/search`) and `retrieve(ctNumber)` (`GET /retrieve/:id`). `AbortController`
+  timeout, throws on non-2xx. `fetch` + base URL are injectable (tests use
+  fixtures — no network). Config: `CTIS_API_URL`, `CTIS_TIMEOUT_MS`.
+- **`ctisMapper.ts`** — pure CTIS→`Trial` mapping. `classifyDisease` limits to
+  the five canonical diseases; `mapPhase`/`mapStatus` normalise CTIS's verbose
+  phase/status; detail extractors pull eligibility criteria, trial sites
+  (→`centers`, `city`/`country`) and public/scientific contacts. If the detail
+  payload is missing it falls back to search-only fields (age/sex →
+  eligibility). Produces a valid `Trial` (canonical disease, enum status).
+- **`importer.ts`** — `runImport({mode, ...})`: searches CTIS per disease
+  (`CTIS_PER_DISEASE`, default 8), enriches each with detail, maps, then applies
+  in one transaction. **full** = replace catalogue (delete all trials +
+  saved_trials + meta, insert fresh); **incremental** = upsert only trials whose
+  CTIS `lastUpdated` changed (or are new), never deleting. Writes a `sync_logs`
+  row every run. Resilience: a per-trial detail failure degrades to search-only
+  (status `partial`); a search/whole-run failure logs `error` and **leaves the
+  existing catalogue untouched** (never wipes good data on a bad fetch).
+- **`run.ts`** — CLI entry for the npm scripts above.
+
+Mapping summary: `ctNumber`→`id`, `ctTitle`→`title`, disease = the canonical
+disease searched, `trialPhase`→`phase`, trial-site address→`city`/`country`,
+`ctStatus`→`status`, eligibility criteria→`inclusion/exclusion_criteria`, trial
+sites→`centers`, sponsor public contact→`contact_*`. The `Trial` shape and every
+API endpoint are unchanged, so the frontend works without modification.
+
+Tests: `src/sync/ctisMapper.test.ts` (classification/normalisation/mapping +
+fallback) and `src/sync/importer.test.ts` (full/incremental/partial/error against
+a fake client + in-memory DB).
 
 ## How to add an endpoint
 

@@ -27,6 +27,20 @@ const schema = z.object({
     emptyToUndefined,
     z.string().default('data/clinicalmatch.sqlite')
   ),
+  // CTIS (EU Clinical Trials Information System) public API — the real trial
+  // data source. Synced by the backend importer only; never called from the UI.
+  CTIS_API_URL: z.preprocess(
+    emptyToUndefined,
+    z.string().default('https://euclinicaltrials.eu/ctis-public-api')
+  ),
+  CTIS_PER_DISEASE: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().default(8)
+  ),
+  CTIS_TIMEOUT_MS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().default(20000)
+  ),
 })
 
 export type Config = z.infer<typeof schema>
