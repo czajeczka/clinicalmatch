@@ -70,6 +70,8 @@ export interface Reply {
   created_at: string
 }
 
+export type Role = 'user' | 'admin'
+
 export interface User {
   id: string
   display_name: string
@@ -77,6 +79,8 @@ export interface User {
   city?: string
   interests: Disease[]
   created_at: string
+  email?: string
+  role: Role
 }
 
 export interface AppNotification {

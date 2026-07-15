@@ -35,7 +35,9 @@ CREATE TABLE IF NOT EXISTS users (
   age          INTEGER,
   city         TEXT,
   interests    TEXT NOT NULL DEFAULT '[]', -- json: Disease[]
-  created_at   TEXT NOT NULL
+  created_at   TEXT NOT NULL,
+  email        TEXT,
+  role         TEXT NOT NULL DEFAULT 'user' -- 'user' | 'admin'
 );
 
 CREATE TABLE IF NOT EXISTS discussions (

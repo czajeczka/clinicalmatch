@@ -64,6 +64,12 @@ and error-shape assertions). Tests run against an in-memory DB (see
   (generated on the frontend's first run). Identity middleware attaches
   `req.userId`; a `requireUser` guard returns **401** when the header is missing.
   Public reads (trials, groups) don't require it; anything user-owned does.
+- **Admin role:** `requireAdmin` (`middleware/identity.ts`) looks the identity
+  up in `users` and returns **403 `{ error: 'Admin access required' }`** unless
+  `role='admin'` (**401** if the header is missing). Role is server-side, so it
+  can't be forged in a body. `isAdmin(userId)` is the shared helper (also lets an
+  admin edit/delete any post or reply). Every privileged endpoint uses it —
+  hiding client buttons is never the enforcement point.
 - **Responses:** JSON. Errors are always `{ error: string }` (optionally
   `{ error, details }` for validation). Status codes: **400** invalid input,
   **401** missing identity, **403** not the owner, **404** not found, **201**
@@ -89,7 +95,11 @@ Tables (JSON-in-TEXT fields marked `[]`):
   short_description, full_description, inclusion_criteria[], exclusion_criteria[],
   centers[], contact_name, contact_email, contact_phone)
 - `support_groups` (id, name, disease, description, color, member_count)
-- `users` (id, display_name, age?, city?, interests[], created_at)
+- `users` (id, display_name, age?, city?, interests[], created_at, email?,
+  **role** `'user' | 'admin'` default `'user'`). Exactly one predefined admin
+  (`u-admin`, Oliwia Czajka) is upserted by the seed; role is **never** settable
+  through the user API. `email`/`role` are backfilled onto existing databases by
+  `applySchema` (idempotent `ALTER TABLE ... ADD COLUMN`).
 - `discussions` (id, group_id, author_id, author_name, title?, content, tags[],
   summary?, created_at) — **`reply_count` is derived** (COUNT of replies), not a
   column
@@ -137,6 +147,9 @@ embeddings table — that belongs to the deferred RAG seminar.
     (`routes/trials.query.ts`) so it's unit-testable; JSON columns come back as
     arrays via the serialise helper.
   - `GET /trials/:id` — one `Trial`, or 404 `{ error: 'Trial not found' }`.
+  - `POST /trials` — **admin** (`requireAdmin`); full trial body; 201.
+  - `PATCH /trials/:id` — **admin**; partial update; 200/404.
+  - `DELETE /trials/:id` — **admin**; also clears saved references; 204/404.
 - **Saved trials** _(chunk 6)_ — all require `x-user-id` (`requireUser`).
   - `GET /saved-trials` — the user's saved trials as full `Trial[]`, newest first.
   - `POST /saved-trials` — `{ trial_id }`. 404 if the trial is unknown;
@@ -149,6 +162,10 @@ embeddings table — that belongs to the deferred RAG seminar.
   - `member_count` is **live**: the seeded base column (a realistic starting
     number, never mutated) **plus** `COUNT(group_memberships)` for that group.
     Joining raises it, leaving lowers it.
+  - `POST /groups` — **admin**; `{ name, disease, description, color }`; 201.
+  - `PATCH /groups/:id` — **admin**; partial update; 200/404.
+  - `DELETE /groups/:id` — **admin**; cascades memberships + discussions +
+    replies; 204/404.
 - **Memberships** _(chunk 7)_ — all require `x-user-id` (`requireUser`).
   - `GET /memberships` — the user's joined groups as full `SupportGroup[]`.
   - `POST /memberships` — `{ group_id }`. 404 if unknown; idempotent (unique
@@ -163,10 +180,10 @@ summary? }`; `content` required non-empty (400 otherwise); 404 if the group
     is unknown; stores `author_id`/`author_name` (from the user's display name,
     else `"You"`); 201. **No AI** — post-enhancement is deferred (frontend
     mock; TODO: LLM API, seminar 6).
-  - `PATCH /discussions/:id` — `requireUser`; author only (403 otherwise, 404 if
-    missing); edits title/content/tags.
-  - `DELETE /discussions/:id` — `requireUser`; author only; also deletes its
-    replies; 204.
+  - `PATCH /discussions/:id` — `requireUser`; author **or admin** (403 otherwise,
+    404 if missing); edits title/content/tags.
+  - `DELETE /discussions/:id` — `requireUser`; author **or admin**; also deletes
+    its replies; 204.
 - **Replies** _(chunk 9)_ — root-mounted router. `reply_count` stays derived,
   so posting/deleting moves it automatically (no counter to maintain).
   - `GET /discussions/:discussionId/replies` — public; `Reply[]` oldest-first;
@@ -174,13 +191,17 @@ summary? }`; `content` required non-empty (400 otherwise); 404 if the group
   - `POST /discussions/:discussionId/replies` — `requireUser`; `{ content }`
     (non-empty, else 400); 404 if the discussion is unknown; stores
     `author_id`/`author_name`; 201.
-  - `DELETE /replies/:id` — `requireUser`; author only (403 otherwise, 404 if
-    missing); 204.
+  - `PATCH /replies/:id` — `requireUser`; author **or admin**; edits content;
+    200/403/404.
+  - `DELETE /replies/:id` — `requireUser`; author **or admin** (403 otherwise,
+    404 if missing); 204.
 - **Notifications** _(chunk 10)_ — plain REST; global demo list (not
   user-scoped), matching the frontend's `getNotifications()`.
   - `GET /notifications` — `Notification[]`, newest first.
-  - `POST /notifications` — `{ title, body, trial_id? }`; 201 with the record
-    (`read: false`). **This is the future n8n "log the interaction" target**
-    (TODO: n8n workflow, later seminar); the AI email summary is deferred too
-    (LLM, seminar 6). Only storage is built here.
-  - `PATCH /notifications/:id` — `{ read }`; marks read/unread; 404 if unknown.
+  - `POST /notifications` — **admin** (`requireAdmin`); `{ title, body, trial_id? }`;
+    201 (`read: false`). Admins create announcements here; the future n8n
+    workflow authenticates as the admin to log interactions (TODO: n8n, later
+    seminar; AI email summary deferred to seminar 6).
+  - `PATCH /notifications/:id` — `{ read }`; marks read/unread (open to any
+    user); 404 if unknown.
+  - `DELETE /notifications/:id` — **admin**; removes an announcement; 204/404.

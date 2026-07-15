@@ -10,6 +10,7 @@ import { Support } from '@/pages/Support'
 import { Board } from '@/pages/Board'
 import { Thread } from '@/pages/Thread'
 import { Profile } from '@/pages/Profile'
+import { Admin } from '@/pages/Admin'
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="support/:groupId" element={<Board />} />
             <Route path="discussion/:id" element={<Thread />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="admin" element={<Admin />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

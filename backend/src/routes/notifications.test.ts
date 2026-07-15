@@ -5,6 +5,8 @@ import { db } from '../db/index.js'
 import { seed } from '../db/seed.js'
 import type { AppNotification } from '../types.js'
 
+const ADMIN = 'u-admin'
+
 describe('notifications endpoints', () => {
   beforeAll(() => seed(db))
 
@@ -18,12 +20,15 @@ describe('notifications endpoints', () => {
     expect(typeof res.body[0].read).toBe('boolean')
   })
 
-  it('POST /notifications creates a record that then appears in the list', async () => {
-    const create = await request(app).post('/notifications').send({
-      title: 'New trial',
-      body: 'A trial you may like',
-      trial_id: 't-002',
-    })
+  it('admin POST /notifications creates a record that then appears in the list', async () => {
+    const create = await request(app)
+      .post('/notifications')
+      .set('x-user-id', ADMIN)
+      .send({
+        title: 'New trial',
+        body: 'A trial you may like',
+        trial_id: 't-002',
+      })
     expect(create.status).toBe(201)
     expect(create.body.id).toBeTruthy()
     expect(create.body.read).toBe(false)
@@ -36,8 +41,24 @@ describe('notifications endpoints', () => {
     expect(ids[0]).toBe(create.body.id)
   })
 
-  it('rejects an invalid body with 400', async () => {
-    const res = await request(app).post('/notifications').send({ title: '' })
+  it('rejects a non-admin POST with 403 and a missing identity with 401', async () => {
+    const noAuth = await request(app)
+      .post('/notifications')
+      .send({ title: 'x', body: 'y' })
+    expect(noAuth.status).toBe(401)
+
+    const forbidden = await request(app)
+      .post('/notifications')
+      .set('x-user-id', 'user-nobody')
+      .send({ title: 'x', body: 'y' })
+    expect(forbidden.status).toBe(403)
+  })
+
+  it('rejects an invalid body with 400 (admin)', async () => {
+    const res = await request(app)
+      .post('/notifications')
+      .set('x-user-id', ADMIN)
+      .send({ title: '' })
     expect(res.status).toBe(400)
   })
 

@@ -8,9 +8,29 @@ export type DB = Database.Database
 
 const schemaPath = join(dirname(fileURLToPath(import.meta.url)), 'schema.sql')
 
-/** Apply the schema (idempotent — CREATE ... IF NOT EXISTS). */
+/** Add a column to a table if it isn't there yet (SQLite has no ADD COLUMN
+ *  IF NOT EXISTS). Keeps already-created databases in sync with schema.sql. */
+function ensureColumn(
+  database: DB,
+  table: string,
+  column: string,
+  ddl: string
+): void {
+  const cols = database.prepare(`PRAGMA table_info(${table})`).all() as {
+    name: string
+  }[]
+  if (!cols.some((c) => c.name === column)) {
+    database.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`)
+  }
+}
+
+/** Apply the schema (idempotent — CREATE ... IF NOT EXISTS) plus lightweight
+ *  column migrations for databases created before a column existed. */
 export function applySchema(database: DB): void {
   database.exec(readFileSync(schemaPath, 'utf8'))
+  // Role-based access (added later): backfill onto existing users tables.
+  ensureColumn(database, 'users', 'email', 'email TEXT')
+  ensureColumn(database, 'users', 'role', "role TEXT NOT NULL DEFAULT 'user'")
 }
 
 /** Open a database at `path` with sane pragmas (WAL, foreign keys). */

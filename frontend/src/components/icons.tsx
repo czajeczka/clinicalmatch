@@ -80,6 +80,12 @@ export const PlusIcon = (p: IconProps) => (
     <path d="M12 5v14M5 12h14" />
   </Base>
 )
+export const ShieldIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z" />
+    <path d="m9 12 2 2 4-4" />
+  </Base>
+)
 export const CheckIcon = (p: IconProps) => (
   <Base {...p}>
     <path d="m5 12 5 5 9-10" />

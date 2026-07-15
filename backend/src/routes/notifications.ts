@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { db } from '../db/index.js'
 import { rowToNotification } from '../db/serialise.js'
 import { validateBody } from '../lib/validation.js'
+import { requireAdmin } from '../middleware/identity.js'
 import type { AppNotification } from '../types.js'
 
 const createSchema = z.object({
@@ -25,12 +26,14 @@ notificationsRouter.get('/', (_req: Request, res: Response) => {
   res.json(rows.map((r) => rowToNotification(r as never)))
 })
 
-// POST /notifications — record (log) a notification.
-// TODO: n8n workflow (later seminar) — this is the endpoint the deferred n8n
-// email workflow will call to "log the interaction". The AI-written email
-// summary itself is also deferred (LLM feature, seminar 6). Here we only store.
+// POST /notifications — create an announcement (ADMIN only).
+// TODO: n8n workflow (later seminar) — this is also the endpoint the deferred
+// n8n email workflow will call to "log the interaction"; that automated caller
+// authenticates with the admin identity. The AI-written email summary itself is
+// deferred (LLM feature, seminar 6). Here we only store.
 notificationsRouter.post(
   '/',
+  requireAdmin,
   validateBody(createSchema),
   (req: Request, res: Response) => {
     const body = req.body as z.infer<typeof createSchema>
@@ -72,5 +75,22 @@ notificationsRouter.patch(
       req.params.id
     )
     res.json({ ...rowToNotification(row as never), read })
+  }
+)
+
+// DELETE /notifications/:id — remove an announcement (ADMIN only).
+notificationsRouter.delete(
+  '/:id',
+  requireAdmin,
+  (req: Request<{ id: string }>, res: Response) => {
+    const row = db
+      .prepare('SELECT 1 FROM notifications WHERE id = ?')
+      .get(req.params.id)
+    if (!row) {
+      res.status(404).json({ error: 'Notification not found' })
+      return
+    }
+    db.prepare('DELETE FROM notifications WHERE id = ?').run(req.params.id)
+    res.status(204).end()
   }
 )

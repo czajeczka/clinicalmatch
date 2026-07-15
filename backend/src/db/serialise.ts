@@ -45,9 +45,11 @@ export function rowToGroup(row: SupportGroup): SupportGroup {
   return { ...row, member_count: Number(row.member_count) }
 }
 
-type UserRow = Omit<User, 'interests' | 'age'> & {
+type UserRow = Omit<User, 'interests' | 'age' | 'email' | 'role'> & {
   interests: string
   age: number | null
+  email: string | null
+  role: string | null
 }
 
 export function rowToUser(row: UserRow): User {
@@ -58,6 +60,8 @@ export function rowToUser(row: UserRow): User {
     city: row.city ?? undefined,
     interests: parseArray(row.interests) as User['interests'],
     created_at: row.created_at,
+    email: row.email ?? undefined,
+    role: row.role === 'admin' ? 'admin' : 'user',
   }
 }
 

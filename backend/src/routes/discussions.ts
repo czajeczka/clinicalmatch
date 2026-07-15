@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { db } from '../db/index.js'
 import { rowToDiscussion } from '../db/serialise.js'
-import { requireUser } from '../middleware/identity.js'
+import { requireUser, isAdmin } from '../middleware/identity.js'
 import { validateBody } from '../lib/validation.js'
 import { groupExists } from './groups.js'
 import type { Discussion } from '../types.js'
@@ -130,7 +130,7 @@ discussionsRouter.patch(
       res.status(404).json({ error: 'Discussion not found' })
       return
     }
-    if (existing.author_id !== req.userId) {
+    if (existing.author_id !== req.userId && !isAdmin(req.userId)) {
       res.status(403).json({ error: 'You can only edit your own posts' })
       return
     }
@@ -164,7 +164,7 @@ discussionsRouter.delete(
       res.status(404).json({ error: 'Discussion not found' })
       return
     }
-    if (existing.author_id !== req.userId) {
+    if (existing.author_id !== req.userId && !isAdmin(req.userId)) {
       res.status(403).json({ error: 'You can only delete your own posts' })
       return
     }

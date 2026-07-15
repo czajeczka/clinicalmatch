@@ -11,6 +11,17 @@ import type {
 // dates keep tests and demos stable. Disease-accent colours are inlined from
 // the frontend's DISEASE_COLORS.
 
+// The single predefined administrator. Seeded (upserted) by `npm run seed`;
+// its fixed id is what an admin device sends as `x-user-id`. No other account
+// can hold role 'admin' — the API never lets role be set through user endpoints.
+export const ADMIN_USER = {
+  id: 'u-admin',
+  display_name: 'Oliwia Czajka',
+  email: 'o.czajka.2004@gmail.com',
+  role: 'admin' as const,
+  created_at: '2026-07-01T00:00:00.000Z',
+}
+
 export const SEED_TRIALS: Trial[] = [
   {
     id: 't-001',

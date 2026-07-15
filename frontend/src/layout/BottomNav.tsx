@@ -6,7 +6,9 @@ import {
   UsersIcon,
   SparkIcon,
   UserIcon,
+  ShieldIcon,
 } from '@/components/icons'
+import { useApp } from '@/store/store'
 import type { ComponentType, SVGProps } from 'react'
 
 interface Tab {
@@ -24,12 +26,16 @@ const TABS: Tab[] = [
   { to: '/profile', label: 'Profile', Icon: UserIcon },
 ]
 
+const ADMIN_TAB: Tab = { to: '/admin', label: 'Admin', Icon: ShieldIcon }
+
 /**
  * Primary five-tab navigation. A bottom bar on mobile; becomes a left rail on
  * large screens (see assignment § Responsiveness) while keeping the same five
  * destinations.
  */
 export function BottomNav() {
+  const { isAdmin } = useApp()
+  const tabs = isAdmin ? [...TABS, ADMIN_TAB] : TABS
   return (
     <nav
       aria-label="Primary"
@@ -42,7 +48,7 @@ export function BottomNav() {
       )}
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      {TABS.map(({ to, label, Icon, end }) => (
+      {tabs.map(({ to, label, Icon, end }) => (
         <NavLink
           key={to}
           to={to}

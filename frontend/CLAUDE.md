@@ -57,6 +57,21 @@ The four AI features stay implemented in `src/mock/mockApi.ts`:
 retry-once-then-fallback behaviour, and the `FAILTEST` escape hatch for demoing
 errors. Community posting works fully without the AI enhancement.
 
+## Admin role
+
+Two roles: `user` (default) and a single predefined `admin`. There is no login —
+role is resolved from the backend by `store.tsx`, which fetches
+`GET /users/:id` for the current `x-user-id` and exposes `isAdmin`.
+
+- `pages/Admin.tsx` (`/admin`) — the Admin Panel: manage trials, support groups,
+  and announcements (create/edit/delete), each via `api.*` admin calls. Guarded
+  client-side (redirects non-admins) **and** server-side (every call is an admin
+  endpoint returning 403 otherwise — the UI gate is convenience, not security).
+- The **Admin** tab in `BottomNav` and moderation controls in `Thread` (edit/
+  delete any post, edit/delete any reply) render only when `isAdmin`.
+- To act as admin, the device identity must be the seeded admin id (`u-admin`);
+  no API path can grant `role='admin'`.
+
 ## Conventions
 
 - **Safety UX (from the brief):** every AI surface shows the informational-only

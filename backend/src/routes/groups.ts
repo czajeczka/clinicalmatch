@@ -1,6 +1,10 @@
 import { Router, type Request, type Response } from 'express'
+import { randomUUID } from 'node:crypto'
+import { z } from 'zod'
 import { db } from '../db/index.js'
 import { rowToGroup } from '../db/serialise.js'
+import { requireAdmin } from '../middleware/identity.js'
+import { diseaseSchema, validateBody } from '../lib/validation.js'
 import type { SupportGroup } from '../types.js'
 
 // member_count is LIVE: the seeded base (a realistic starting number) plus the
@@ -58,3 +62,81 @@ groupsRouter.get('/:id', (req: Request<{ id: string }>, res: Response) => {
   }
   res.json(group)
 })
+
+// ---- Admin write endpoints ----
+
+const groupBodySchema = z.object({
+  name: z.string().trim().min(1),
+  disease: diseaseSchema,
+  description: z.string().trim().min(1),
+  color: z.string().trim().min(1),
+})
+const groupPatchSchema = groupBodySchema.partial()
+
+// POST /groups  (admin) — create a support group.
+groupsRouter.post(
+  '/',
+  requireAdmin,
+  validateBody(groupBodySchema),
+  (req: Request, res: Response) => {
+    const body = req.body as z.infer<typeof groupBodySchema>
+    const id = `g-${randomUUID()}`
+    db.prepare(
+      `INSERT INTO support_groups (id, name, disease, description, color, member_count)
+       VALUES (@id, @name, @disease, @description, @color, 0)`
+    ).run({ id, ...body })
+    res.status(201).json(getGroup(id))
+  }
+)
+
+// PATCH /groups/:id  (admin) — edit a support group.
+groupsRouter.patch(
+  '/:id',
+  requireAdmin,
+  validateBody(groupPatchSchema),
+  (req: Request<{ id: string }>, res: Response) => {
+    const existing = getGroup(req.params.id)
+    if (!existing) {
+      res.status(404).json({ error: 'Group not found' })
+      return
+    }
+    const patch = req.body as z.infer<typeof groupPatchSchema>
+    const merged = { ...existing, ...patch }
+    db.prepare(
+      `UPDATE support_groups
+       SET name = @name, disease = @disease, description = @description, color = @color
+       WHERE id = @id`
+    ).run({
+      id: req.params.id,
+      name: merged.name,
+      disease: merged.disease,
+      description: merged.description,
+      color: merged.color,
+    })
+    res.json(getGroup(req.params.id))
+  }
+)
+
+// DELETE /groups/:id  (admin) — delete a group and everything hanging off it
+// (memberships, its discussions, and those discussions' replies).
+groupsRouter.delete(
+  '/:id',
+  requireAdmin,
+  (req: Request<{ id: string }>, res: Response) => {
+    if (!groupExists(req.params.id)) {
+      res.status(404).json({ error: 'Group not found' })
+      return
+    }
+    const tx = db.transaction((id: string) => {
+      db.prepare(
+        `DELETE FROM replies WHERE discussion_id IN
+           (SELECT id FROM discussions WHERE group_id = ?)`
+      ).run(id)
+      db.prepare('DELETE FROM discussions WHERE group_id = ?').run(id)
+      db.prepare('DELETE FROM group_memberships WHERE group_id = ?').run(id)
+      db.prepare('DELETE FROM support_groups WHERE id = ?').run(id)
+    })
+    tx(req.params.id)
+    res.status(204).end()
+  }
+)

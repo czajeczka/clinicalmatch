@@ -207,7 +207,14 @@ Done vs. deferred as of the current chunks (12/12):
 - **Safety framing** — every AI surface carries the informational-only note;
   "unlikely" verdict is neutral grey, never red.
 - **Backend** — full non-AI REST API (users, trials, saved, groups,
-  memberships, discussions, replies, notifications), 47 tests + an e2e flow.
+  memberships, discussions, replies, notifications), plus an admin surface;
+  59 backend tests + an e2e flow.
+- **Admin role** — two roles (`user`/`admin`); one predefined admin (Oliwia
+  Czajka, `u-admin`) seeded. Admin can create/edit/delete trials, support
+  groups, and announcements, and moderate any discussion/reply. Enforced by
+  `requireAdmin` on every privileged endpoint (403 for non-admins); the frontend
+  shows an Admin Panel + moderation controls only when `isAdmin`. No login —
+  role is keyed off the existing `x-user-id` identity.
 
 **Deferred (each has its own later seminar — intentionally not built):**
 - **LLM smart features** (self-check, plain-language criteria, trial summary,

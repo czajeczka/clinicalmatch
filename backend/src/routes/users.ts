@@ -74,6 +74,11 @@ usersRouter.post(
       city: body.city,
       interests: body.interests,
       created_at: existing?.created_at ?? new Date().toISOString(),
+      // Role/email are never accepted from the request body — role is only ever
+      // assigned by the seed. Preserve an existing account's role (so the admin
+      // can't be downgraded by re-posting); new accounts are always 'user'.
+      email: existing?.email,
+      role: existing?.role ?? 'user',
     }
     writeUser(user)
     res.status(existing ? 200 : 201).json(user)

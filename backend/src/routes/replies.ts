@@ -3,11 +3,12 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { db } from '../db/index.js'
 import { rowToReply } from '../db/serialise.js'
-import { requireUser } from '../middleware/identity.js'
+import { requireUser, isAdmin } from '../middleware/identity.js'
 import { validateBody } from '../lib/validation.js'
 import type { Reply } from '../types.js'
 
 const createSchema = z.object({ content: z.string().trim().min(1) })
+const patchSchema = z.object({ content: z.string().trim().min(1) })
 
 function discussionExists(id: string): boolean {
   return !!db.prepare('SELECT 1 FROM discussions WHERE id = ?').get(id)
@@ -69,7 +70,33 @@ repliesRouter.post(
   }
 )
 
-// DELETE /replies/:id — author only.
+// PATCH /replies/:id — edit content. Author or admin (admin can edit any).
+repliesRouter.patch(
+  '/replies/:id',
+  requireUser,
+  validateBody(patchSchema),
+  (req: Request<{ id: string }>, res: Response) => {
+    const row = db
+      .prepare('SELECT * FROM replies WHERE id = ?')
+      .get(req.params.id) as Reply | undefined
+    if (!row) {
+      res.status(404).json({ error: 'Reply not found' })
+      return
+    }
+    if (row.author_id !== req.userId && !isAdmin(req.userId)) {
+      res.status(403).json({ error: 'You can only edit your own replies' })
+      return
+    }
+    const { content } = req.body as z.infer<typeof patchSchema>
+    db.prepare('UPDATE replies SET content = ? WHERE id = ?').run(
+      content,
+      req.params.id
+    )
+    res.json(rowToReply({ ...row, content }))
+  }
+)
+
+// DELETE /replies/:id — author or admin (admin can delete any).
 repliesRouter.delete(
   '/replies/:id',
   requireUser,
@@ -81,7 +108,7 @@ repliesRouter.delete(
       res.status(404).json({ error: 'Reply not found' })
       return
     }
-    if (row.author_id !== req.userId) {
+    if (row.author_id !== req.userId && !isAdmin(req.userId)) {
       res.status(403).json({ error: 'You can only delete your own replies' })
       return
     }

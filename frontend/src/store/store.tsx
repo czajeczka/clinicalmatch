@@ -37,6 +37,10 @@ interface AppContextValue {
   // ownership check for community posts
   isOwn: (authorId: string) => boolean
 
+  // true when the current identity maps to the admin account (role fetched
+  // from the backend — the server is the source of truth, buttons are not)
+  isAdmin: boolean
+
   // toasts
   toasts: Toast[]
   toast: (message: string, kind?: ToastKind) => void
@@ -62,6 +66,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   )
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [isAdmin, setIsAdmin] = useState(false)
 
   const toast = useCallback((message: string, kind: ToastKind = 'info') => {
     const id = ++toastSeq
@@ -97,6 +102,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .getMemberships()
       .then((groups) => {
         if (active) setJoined(groups.map((g) => g.id))
+      })
+      .catch(() => {})
+    // Resolve the role server-side; admin controls hinge on this.
+    api
+      .getUser(userId)
+      .then((u) => {
+        if (active) setIsAdmin(u?.role === 'admin')
       })
       .catch(() => {})
     return () => {
@@ -184,6 +196,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isJoined,
       toggleJoin,
       isOwn,
+      isAdmin,
       toasts,
       toast,
       dismissToast,
@@ -198,6 +211,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isJoined,
       toggleJoin,
       isOwn,
+      isAdmin,
       toasts,
       toast,
       dismissToast,

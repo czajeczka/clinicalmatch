@@ -12,7 +12,8 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { timeAgo } from '@/lib/format'
 import { useAsync } from '@/hooks/useAsync'
 import { api } from '@/mock/mockApi'
-import { useApp } from '@/store/store'
+import { useApp, type ToastKind } from '@/store/store'
+import type { Reply } from '@/types'
 
 // Shared focus ring for the inline text buttons (Edit/Delete), matching the
 // rest of the design system's focus-visible treatment.
@@ -22,7 +23,7 @@ const inlineBtn =
 export function Thread() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
-  const { isOwn, toast } = useApp()
+  const { isOwn, isAdmin, toast } = useApp()
 
   const {
     data: discussion,
@@ -85,7 +86,8 @@ export function Thread() {
     )
   }
 
-  const ownPost = isOwn(discussion.author_id)
+  // Admins can moderate anyone's content; regular users only their own.
+  const canModeratePost = isOwn(discussion.author_id) || isAdmin
   const replyList = replies ?? []
 
   function submitReply() {
@@ -185,7 +187,7 @@ export function Thread() {
                 <span>
                   {discussion.author_name} · {timeAgo(discussion.created_at)}
                 </span>
-                {ownPost && (
+                {canModeratePost && (
                   <span className="flex gap-3">
                     <button
                       className={`text-primary ${inlineBtn}`}
@@ -234,26 +236,16 @@ export function Thread() {
           ) : (
             <div className="flex flex-col gap-2">
               {replyList.map((r) => (
-                <Card key={r.id}>
-                  <p className="text-text text-sm whitespace-pre-wrap">
-                    {r.content}
-                  </p>
-                  <div className="text-text-muted mt-2 flex items-center justify-between font-mono text-xs">
-                    <span>
-                      {r.author_name} · {timeAgo(r.created_at)}
-                    </span>
-                    {isOwn(r.author_id) && (
-                      <button
-                        className={`text-danger ${inlineBtn}`}
-                        onClick={() =>
-                          setConfirmDelete({ kind: 'reply', replyId: r.id })
-                        }
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </Card>
+                <ReplyItem
+                  key={r.id}
+                  reply={r}
+                  canModerate={isOwn(r.author_id) || isAdmin}
+                  onEdited={reloadReplies}
+                  onRequestDelete={() =>
+                    setConfirmDelete({ kind: 'reply', replyId: r.id })
+                  }
+                  toast={toast}
+                />
               ))}
             </div>
           )}
@@ -320,5 +312,103 @@ export function Thread() {
         }}
       />
     </div>
+  )
+}
+
+/** A single reply with owner/admin moderation: inline edit + delete request. */
+function ReplyItem({
+  reply,
+  canModerate,
+  onEdited,
+  onRequestDelete,
+  toast,
+}: {
+  reply: Reply
+  canModerate: boolean
+  onEdited: () => void
+  onRequestDelete: () => void
+  toast: (message: string, kind?: ToastKind) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(reply.content)
+  const [saving, setSaving] = useState(false)
+
+  function save() {
+    const content = text.trim()
+    if (!content || saving) return
+    setSaving(true)
+    api
+      .updateReply(reply.id, content)
+      .then(() => {
+        setEditing(false)
+        onEdited()
+        toast('Reply updated', 'success')
+      })
+      .catch(() => toast('Couldn’t update the reply.', 'error'))
+      .finally(() => setSaving(false))
+  }
+
+  return (
+    <Card>
+      {editing ? (
+        <div className="space-y-2">
+          <Textarea
+            aria-label="Edit reply"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setEditing(false)
+                setText(reply.content)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!text.trim()}
+              loading={saving}
+              onClick={save}
+            >
+              Save
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="text-text text-sm whitespace-pre-wrap">
+            {reply.content}
+          </p>
+          <div className="text-text-muted mt-2 flex items-center justify-between font-mono text-xs">
+            <span>
+              {reply.author_name} · {timeAgo(reply.created_at)}
+            </span>
+            {canModerate && (
+              <span className="flex gap-3">
+                <button
+                  className={`text-primary ${inlineBtn}`}
+                  onClick={() => {
+                    setText(reply.content)
+                    setEditing(true)
+                  }}
+                >
+                  Edit
+                </button>
+                <button
+                  className={`text-danger ${inlineBtn}`}
+                  onClick={onRequestDelete}
+                >
+                  Delete
+                </button>
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </Card>
   )
 }

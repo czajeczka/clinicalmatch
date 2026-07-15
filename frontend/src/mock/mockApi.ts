@@ -273,6 +273,14 @@ export const api = {
   ) {
     return apiClient.patch<User>(`/users/${encodeURIComponent(id)}`, patch)
   },
+  getUser(id: string) {
+    return apiClient
+      .get<User>(`/users/${encodeURIComponent(id)}`)
+      .catch((err) => {
+        if (err?.status === 404) return null
+        throw err
+      })
+  },
 
   // ---- Notifications (real) ----
   getNotifications() {
@@ -283,6 +291,53 @@ export const api = {
       `/notifications/${encodeURIComponent(id)}`,
       { read: true }
     )
+  },
+
+  // ---- Admin (real; backend enforces role='admin' → 403 otherwise) ----
+  createTrial(body: Omit<Trial, 'id'>) {
+    return apiClient.post<Trial>('/trials', body)
+  },
+  updateTrial(id: string, patch: Partial<Omit<Trial, 'id'>>) {
+    return apiClient.patch<Trial>(`/trials/${encodeURIComponent(id)}`, patch)
+  },
+  deleteTrial(id: string) {
+    return apiClient.delete<void>(`/trials/${encodeURIComponent(id)}`)
+  },
+  createGroup(body: {
+    name: string
+    disease: Disease
+    description: string
+    color: string
+  }) {
+    return apiClient.post<SupportGroup>('/groups', body)
+  },
+  updateGroup(
+    id: string,
+    patch: Partial<{
+      name: string
+      disease: Disease
+      description: string
+      color: string
+    }>
+  ) {
+    return apiClient.patch<SupportGroup>(
+      `/groups/${encodeURIComponent(id)}`,
+      patch
+    )
+  },
+  deleteGroup(id: string) {
+    return apiClient.delete<void>(`/groups/${encodeURIComponent(id)}`)
+  },
+  createNotification(body: { title: string; body: string; trial_id?: string }) {
+    return apiClient.post<AppNotification>('/notifications', body)
+  },
+  deleteNotification(id: string) {
+    return apiClient.delete<void>(`/notifications/${encodeURIComponent(id)}`)
+  },
+  updateReply(id: string, content: string) {
+    return apiClient.patch<Reply>(`/replies/${encodeURIComponent(id)}`, {
+      content,
+    })
   },
 
   // ---- AI features (MOCKED — deferred) --------------------------------------

@@ -1,6 +1,7 @@
 import { db as singleton, type DB } from './index.js'
 import { migrate } from './migrate.js'
 import {
+  ADMIN_USER,
   SEED_DISCUSSIONS,
   SEED_GROUPS,
   SEED_NOTIFICATIONS,
@@ -44,7 +45,20 @@ export function seed(database: DB = singleton): void {
     VALUES (@id, @title, @body, @trial_id, @created_at, @read)
   `)
 
+  // Upsert the single admin account. Unlike the content tables, users are NOT
+  // cleared (they hold real device identities); ON CONFLICT keeps this
+  // idempotent and re-affirms the admin's role/email without disturbing others.
+  const upsertAdmin = database.prepare(`
+    INSERT INTO users (id, display_name, email, role, interests, created_at)
+    VALUES (@id, @display_name, @email, @role, '[]', @created_at)
+    ON CONFLICT(id) DO UPDATE SET
+      display_name = excluded.display_name,
+      email = excluded.email,
+      role = excluded.role
+  `)
+
   const run = database.transaction(() => {
+    upsertAdmin.run(ADMIN_USER)
     for (const table of [
       'notifications',
       'replies',
