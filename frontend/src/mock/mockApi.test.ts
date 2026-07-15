@@ -29,14 +29,11 @@ describe('filterTrials', () => {
 })
 
 describe('api AI failure handling (still-mocked features)', () => {
-  // selfCheck now calls the real backend (POST /ai/eligibility-check); the
-  // remaining AI features stay mocked here and keep the FAILTEST escape hatch.
+  // selfCheck and enhancePost now call the real backend (/ai/*); the remaining
+  // AI features stay mocked here and keep the FAILTEST escape hatch.
   it('throws when a mocked AI input contains the fail token', async () => {
     await expect(
-      api.enhancePost({
-        message: `Sharing an update ${FAIL_TOKEN}`,
-        groupName: 'Type 2 Diabetes',
-      })
+      api.askTrial(t2d.id, `What about diet ${FAIL_TOKEN}?`)
     ).rejects.toThrow()
   })
 

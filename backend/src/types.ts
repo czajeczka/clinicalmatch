@@ -117,3 +117,12 @@ export interface EligibilityResult {
   gaps: string[]
   note: string
 }
+
+/** AI-assisted community post enhancement. Mirrors the frontend
+ *  `PostEnhancement` type so the API and UI stay in lockstep. */
+export interface PostEnhancement {
+  title: string
+  improvedContent: string
+  tags: string[]
+  summary: string
+}

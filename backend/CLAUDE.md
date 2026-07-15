@@ -412,3 +412,9 @@ summary? }`; `content` required non-empty (400 otherwise); 404 if the group
     400 on invalid input, 404 if the trial is unknown. Returns
     `EligibilityResult` `{ verdict: 'likely'|'possibly'|'unlikely', headline,
     matches[], gaps[], note }` (Chat Completions, Structured Outputs).
+  - `POST /ai/enhance-post` — `requireUser`. Body `{ message, title?,
+    groupName }` (400 on empty message, 401 without identity). Polishes a
+    community post: returns `PostEnhancement` `{ title, improvedContent, tags[],
+    summary }` (grammar/readability, a title, a one-line summary and up to four
+    tags from the fixed community set — capped in code since strict Structured
+    Outputs rejects `maxItems`). Suggestion only; never stored.

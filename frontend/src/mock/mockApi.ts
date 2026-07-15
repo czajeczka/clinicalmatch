@@ -382,23 +382,16 @@ export const api = {
     }
   },
 
-  async enhancePost(draft: {
+  // Community post enhancement — REAL (seminar 6). Routes through the backend's
+  // shared LLM abstraction layer (POST /ai/enhance-post); improves grammar/
+  // readability, suggests a title, a summary and up to four tags. Suggestion
+  // only — the composer can always publish as-is and degrades on failure.
+  enhancePost(draft: {
     title?: string
     message: string
     groupName: string
   }): Promise<PostEnhancement> {
-    await delay(null, 700)
-    maybeFail(draft.message + ' ' + (draft.title ?? ''))
-    const firstLine = draft.message.split('\n')[0].slice(0, 60)
-    return {
-      title:
-        draft.title?.trim() || capitalise(firstLine) || 'A note to the group',
-      improvedContent: draft.message.trim(),
-      tags: suggestTags(draft.message, draft.groupName),
-      summary: `A member of ${draft.groupName} shares: ${firstLine}${
-        draft.message.length > 60 ? '…' : ''
-      }`,
-    }
+    return apiClient.post<PostEnhancement>('/ai/enhance-post', draft)
   },
 }
 
@@ -406,20 +399,4 @@ export const api = {
 
 function plainify(criterion: string): string {
   return criterion.replace(/\bBMI\b/g, 'body mass index')
-}
-
-function capitalise(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function suggestTags(message: string, groupName: string): string[] {
-  const tags = new Set<string>()
-  const m = message.toLowerCase()
-  if (/new|diagnos/.test(m)) tags.add('newly diagnosed')
-  if (/trial|study/.test(m)) tags.add('clinical trials')
-  if (/tired|fatigue|energy/.test(m)) tags.add('fatigue')
-  if (/thank|grateful|win|progress/.test(m)) tags.add('wins')
-  if (tags.size === 0) tags.add('support')
-  tags.add(groupName.split(' ')[0].toLowerCase())
-  return [...tags].slice(0, 4)
 }

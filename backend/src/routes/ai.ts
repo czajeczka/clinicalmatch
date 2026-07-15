@@ -3,8 +3,9 @@ import { z } from 'zod'
 import { getTrialById } from '../db/trials.js'
 import { validateBody } from '../lib/validation.js'
 import { sendAiError } from '../lib/aiResponse.js'
+import { requireUser } from '../middleware/identity.js'
 import { llm } from '../ai/llm.js'
-import type { EligibilityResult, Trial } from '../types.js'
+import type { EligibilityResult, PostEnhancement, Trial } from '../types.js'
 
 // AI smart features (seminar 6). Every route goes through the shared LLM
 // abstraction (`llm`) — never the OpenAI SDK directly — validates its JSON
@@ -93,6 +94,82 @@ aiRouter.post(
         maxTokens: 700,
       })
       res.json(result)
+    } catch (err) {
+      sendAiError(res, err)
+    }
+  }
+)
+
+// ---- POST /ai/enhance-post -------------------------------------------------
+// Optional AI polish for a community post: improves grammar/readability without
+// changing meaning, suggests a title, a one-line summary and up to four tags.
+// Suggestion only — the client can always publish as-is; it is never stored.
+
+// The eight community tags the model may choose from.
+const COMMUNITY_TAGS = [
+  'Treatment',
+  'Clinical Trials',
+  'Side Effects',
+  'Nutrition',
+  'Mental Health',
+  'Caregivers',
+  'Success Stories',
+  'Questions',
+] as const
+
+const enhancePostInputSchema = z.object({
+  message: z.string().trim().min(1),
+  title: z.string().optional(),
+  groupName: z.string().trim().min(1),
+})
+
+// Mirrors the frontend `PostEnhancement`. No array-length keyword here: OpenAI
+// strict Structured Outputs rejects maxItems, so we cap `tags` in code instead.
+const postEnhancementSchema = z.object({
+  title: z.string(),
+  improvedContent: z.string(),
+  tags: z.array(z.string()),
+  summary: z.string(),
+}) satisfies z.ZodType<PostEnhancement>
+
+const ENHANCE_SYSTEM_PROMPT =
+  'You help a patient polish a post for a peer-support health community. ' +
+  'Improve grammar, clarity and readability WITHOUT changing the meaning, the ' +
+  'facts or the first-person voice, and without adding claims or medical ' +
+  'advice. Keep it warm and supportive. Produce: a concise `title` (use the ' +
+  "user's title if given), an `improvedContent` draft, a one-sentence " +
+  '`summary`, and up to 4 short `tags` chosen ONLY from this list: ' +
+  COMMUNITY_TAGS.join(', ') +
+  '. Reply with JSON only, matching the schema.'
+
+aiRouter.post(
+  '/enhance-post',
+  requireUser,
+  validateBody(enhancePostInputSchema),
+  async (req: Request, res: Response) => {
+    const body = req.body as z.infer<typeof enhancePostInputSchema>
+    const user = [
+      `Community: ${body.groupName}`,
+      body.title ? `Draft title: ${body.title}` : 'Draft title: (none)',
+      '',
+      'Message:',
+      body.message,
+    ].join('\n')
+    try {
+      const result = await llm.completeJSON<PostEnhancement>({
+        system: ENHANCE_SYSTEM_PROMPT,
+        user,
+        schema: postEnhancementSchema,
+        schemaName: 'post_enhancement',
+        temperature: 0.5,
+        maxTokens: 500,
+      })
+      // Keep only known tags, capped at four (defensive — see schema note).
+      const allowed = new Set<string>(COMMUNITY_TAGS)
+      res.json({
+        ...result,
+        tags: result.tags.filter((t) => allowed.has(t)).slice(0, 4),
+      })
     } catch (err) {
       sendAiError(res, err)
     }

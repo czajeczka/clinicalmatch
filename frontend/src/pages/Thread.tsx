@@ -9,7 +9,10 @@ import { EmptyState } from '@/components/EmptyState'
 import { SkeletonList } from '@/components/Skeleton'
 import { ErrorRetry } from '@/components/ErrorRetry'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { ReactionBar } from '@/components/ReactionBar'
+import { ReportDialog } from '@/components/ReportDialog'
 import { timeAgo } from '@/lib/format'
+import { isAnonymous, type ReportTarget } from '@/lib/community'
 import { useAsync } from '@/hooks/useAsync'
 import { api } from '@/mock/mockApi'
 import { useApp, type ToastKind } from '@/store/store'
@@ -46,6 +49,10 @@ export function Thread() {
   const [confirmDelete, setConfirmDelete] = useState<
     { kind: 'post' } | { kind: 'reply'; replyId: string } | null
   >(null)
+  const [reportTarget, setReportTarget] = useState<{
+    type: ReportTarget
+    id: string
+  } | null>(null)
 
   if (loading) {
     return (
@@ -183,30 +190,46 @@ export function Thread() {
                   ))}
                 </div>
               )}
+              <ReactionBar postId={discussion.id} className="mt-4" />
               <div className="text-text-muted mt-3 flex items-center justify-between font-mono text-xs">
                 <span>
-                  {discussion.author_name} · {timeAgo(discussion.created_at)}
+                  {isAnonymous(discussion.id)
+                    ? 'Anonymous member'
+                    : discussion.author_name}{' '}
+                  · {timeAgo(discussion.created_at)}
                 </span>
-                {canModeratePost && (
-                  <span className="flex gap-3">
+                <span className="flex gap-3">
+                  {canModeratePost && (
+                    <>
+                      <button
+                        className={`text-primary ${inlineBtn}`}
+                        onClick={() => {
+                          setEditTitle(discussion.title ?? '')
+                          setEditContent(discussion.content)
+                          setEditing(true)
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className={`text-danger ${inlineBtn}`}
+                        onClick={() => setConfirmDelete({ kind: 'post' })}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                  {!isOwn(discussion.author_id) && (
                     <button
-                      className={`text-primary ${inlineBtn}`}
-                      onClick={() => {
-                        setEditTitle(discussion.title ?? '')
-                        setEditContent(discussion.content)
-                        setEditing(true)
-                      }}
+                      className={`text-text-muted hover:text-danger ${inlineBtn}`}
+                      onClick={() =>
+                        setReportTarget({ type: 'post', id: discussion.id })
+                      }
                     >
-                      Edit
+                      Report
                     </button>
-                    <button
-                      className={`text-danger ${inlineBtn}`}
-                      onClick={() => setConfirmDelete({ kind: 'post' })}
-                    >
-                      Delete
-                    </button>
-                  </span>
-                )}
+                  )}
+                </span>
               </div>
             </>
           )}
@@ -240,9 +263,13 @@ export function Thread() {
                   key={r.id}
                   reply={r}
                   canModerate={isOwn(r.author_id) || isAdmin}
+                  canReport={!isOwn(r.author_id)}
                   onEdited={reloadReplies}
                   onRequestDelete={() =>
                     setConfirmDelete({ kind: 'reply', replyId: r.id })
+                  }
+                  onReport={() =>
+                    setReportTarget({ type: 'comment', id: r.id })
                   }
                   toast={toast}
                 />
@@ -311,6 +338,12 @@ export function Thread() {
           }
         }}
       />
+
+      <ReportDialog
+        open={reportTarget !== null}
+        target={reportTarget}
+        onClose={() => setReportTarget(null)}
+      />
     </div>
   )
 }
@@ -319,14 +352,18 @@ export function Thread() {
 function ReplyItem({
   reply,
   canModerate,
+  canReport,
   onEdited,
   onRequestDelete,
+  onReport,
   toast,
 }: {
   reply: Reply
   canModerate: boolean
+  canReport: boolean
   onEdited: () => void
   onRequestDelete: () => void
+  onReport: () => void
   toast: (message: string, kind?: ToastKind) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -387,25 +424,35 @@ function ReplyItem({
             <span>
               {reply.author_name} · {timeAgo(reply.created_at)}
             </span>
-            {canModerate && (
-              <span className="flex gap-3">
+            <span className="flex gap-3">
+              {canModerate && (
+                <>
+                  <button
+                    className={`text-primary ${inlineBtn}`}
+                    onClick={() => {
+                      setText(reply.content)
+                      setEditing(true)
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className={`text-danger ${inlineBtn}`}
+                    onClick={onRequestDelete}
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
+              {canReport && (
                 <button
-                  className={`text-primary ${inlineBtn}`}
-                  onClick={() => {
-                    setText(reply.content)
-                    setEditing(true)
-                  }}
+                  className={`text-text-muted hover:text-danger ${inlineBtn}`}
+                  onClick={onReport}
                 >
-                  Edit
+                  Report
                 </button>
-                <button
-                  className={`text-danger ${inlineBtn}`}
-                  onClick={onRequestDelete}
-                >
-                  Delete
-                </button>
-              </span>
-            )}
+              )}
+            </span>
           </div>
         </>
       )}

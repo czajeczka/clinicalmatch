@@ -8,6 +8,7 @@ import { TrialDetail } from '@/pages/TrialDetail'
 import { Assistant } from '@/pages/Assistant'
 import { Support } from '@/pages/Support'
 import { Board } from '@/pages/Board'
+import { Buddy } from '@/pages/Buddy'
 import { Thread } from '@/pages/Thread'
 import { Profile } from '@/pages/Profile'
 import { Admin } from '@/pages/Admin'
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="trials/:id" element={<TrialDetail />} />
             <Route path="assistant" element={<Assistant />} />
             <Route path="support" element={<Support />} />
+            <Route path="support/buddies" element={<Buddy />} />
             <Route path="support/:groupId" element={<Board />} />
             <Route path="discussion/:id" element={<Thread />} />
             <Route path="profile" element={<Profile />} />

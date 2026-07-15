@@ -50,16 +50,15 @@ The app now calls the real backend for all **non-AI** data:
 
 ### AI features — live vs. still mocked
 
-- **Live (seminar 6):** `selfCheck` (eligibility self-check) now calls the real
-  backend — `POST /ai/eligibility-check` via `apiClient` — which routes through
-  the shared LLM abstraction layer, validates the JSON, and returns a calm 502
-  fallback on failure. The UI (Assistant → SelfCheck) is unchanged.
+- **Live (seminar 6):** `selfCheck` (eligibility self-check → `POST
+  /ai/eligibility-check`) and `enhancePost` (community post assistant → `POST
+  /ai/enhance-post`) call the real backend via `apiClient`, routing through the
+  shared LLM abstraction layer with validated JSON and a calm 502 fallback.
 - **Still mocked — deferred (do NOT wire to the backend here):**
-  `summariseTrial`, `explainCriteria`, `enhancePost` → `TODO: LLM API
-  (seminar 6)`; `askTrial` (grounded Q&A) also → `TODO: RAG (later seminar)`.
-  They keep the informational-only framing, the retry-once-then-fallback
-  behaviour, and the `FAILTEST` escape hatch for demoing errors. Community
-  posting works fully without the AI enhancement.
+  `summariseTrial`, `explainCriteria` → `TODO: LLM API (seminar 6)`; `askTrial`
+  (grounded Q&A) also → `TODO: RAG (later seminar)`. They keep the
+  informational-only framing, the retry-once-then-fallback behaviour, and the
+  `FAILTEST` escape hatch. Community posting works fully without the AI.
 
 ## Admin role
 
@@ -84,5 +83,51 @@ role is resolved from the backend by `store.tsx`, which fetches
   copy), and error (calm retry). Offline shows a banner; AI/search controls read
   "Unavailable offline". _(Runtime caching of API GETs for full offline data is
   a known follow-up — the service worker currently precaches the app shell.)_
-- **Structure:** `pages/` (10 screens), `components/` (design system + domain),
+- **Structure:** `pages/` (11 screens), `components/` (design system + domain),
   `layout/` (shell, nav, header), `store/`, `hooks/`, `lib/`, `mock/`.
+
+## Community (Support)
+
+The Support section is a full peer-support community platform. Data that the
+backend models is real; the richer social layer lives in `lib/community.ts` —
+a **deterministic, device-local layer** (seeded mock data + localStorage), so
+no backend/schema changes were needed.
+
+- **Real (backend):** communities list + join/leave (`getGroups`,
+  memberships), the discussion feed and posts (`getGroupDiscussions`,
+  `createDiscussion` with title/body/tags/summary), comments (`replies`), and
+  the AI post assistant (`enhancePost` → `/ai/enhance-post`).
+- **`lib/community.ts` (local layer):** reactions (❤️ Support · 🤗 Hug · 🙏
+  Thinking of you · 💙 Helpful), reports, community meta (cover gradient, online
+  count, moderators, guidelines), member directory + profiles, buddy candidates
+  + requests, meetups, the 8 post tags, and the anonymous-post convention. All
+  seeded from stable ids and persisted per device. `TODO:` promote to real
+  endpoints in a future backend seminar.
+- **Pages:** `Support` (community list + search + safety notice), `Board`
+  (community home: cover, safety notice, search over discussions/members/tags,
+  create post, pinned, trending, feed, meetups, members, rules), `Buddy`
+  (`/support/buddies` — filter + send requests), `Thread` (post detail with
+  reactions + reporting).
+- **Components:** `CommunityCard`, `CommunityCover`, `PostCard`, `ReactionBar`,
+  `ReportDialog`, `MemberCard`, `MemberProfileSheet`, `MeetupCard`,
+  `SafetyNotice`, `Avatar`, and the extended `ComposeSheet` (tags, anonymous,
+  AI). Every community surface shows the peer-support safety notice.
+
+## Dashboard (Home)
+
+The Home dashboard is the app's production-grade landing surface. It composes:
+
+- `layout/DashboardTopBar` — the top navigation bar (Home only): brand, a
+  **global search** that deep-links into `/trials?query=…`, a **notifications**
+  popover (reuses `getNotifications` / `markNotificationRead`), and an
+  **account menu** with the theme toggle (`useTheme`) and admin link. All data
+  and navigation reuse existing routes/APIs — no backend changes.
+- `components/Popover` — accessible dropdown (Escape + click-outside to close)
+  used by the top bar.
+- `components/FeatureCard` — premium action card (tinted icon tile, title,
+  copy, animated arrow) for Quick Actions.
+- `components/MedicalIllustration` — self-contained, theme-aware hero SVG.
+- Hero **live platform statistics** (active trials, recruiting now, countries,
+  disease areas) come from the existing `getTrialsPage` (total counts, `limit:1`)
+  and `getFacets` endpoints. Trial grids reuse `TrialCard`; personal metrics
+  reuse `StatTile`. `Home.test.tsx` is a mounting smoke test.
