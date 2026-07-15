@@ -46,12 +46,17 @@ export function createCtisClient(opts?: {
   baseUrl?: string
   fetchImpl?: FetchLike
   timeoutMs?: number
+  retryCount?: number
+  /** Backoff between retries in ms (overridable so tests don't sleep). */
+  retryDelayMs?: number
 }): CtisClient {
   const baseUrl = (opts?.baseUrl ?? config.CTIS_API_URL).replace(/\/+$/, '')
   const doFetch: FetchLike = opts?.fetchImpl ?? ((u, i) => fetch(u, i))
   const timeoutMs = opts?.timeoutMs ?? config.CTIS_TIMEOUT_MS
+  const retryCount = opts?.retryCount ?? config.IMPORT_RETRY_COUNT
+  const retryDelayMs = opts?.retryDelayMs ?? 500
 
-  async function call(path: string, init: RequestInit): Promise<Response> {
+  async function once(path: string, init: RequestInit): Promise<Response> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {
@@ -62,6 +67,33 @@ export function createCtisClient(opts?: {
     } finally {
       clearTimeout(timer)
     }
+  }
+
+  /**
+   * Fetch with bounded retries. Retries transient failures only — network
+   * errors / timeouts (thrown) and 5xx / 429 responses — with linear backoff.
+   * 4xx and a final failure propagate to the caller.
+   */
+  async function call(path: string, init: RequestInit): Promise<Response> {
+    let lastErr: unknown
+    for (let attempt = 0; attempt <= retryCount; attempt++) {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, retryDelayMs * attempt))
+      }
+      try {
+        const res = await once(path, init)
+        if (res.status >= 500 || res.status === 429) {
+          lastErr = new Error(`transient HTTP ${res.status}`)
+          continue
+        }
+        return res
+      } catch (e) {
+        lastErr = e // network error / timeout → retry
+      }
+    }
+    throw lastErr instanceof Error
+      ? lastErr
+      : new Error(`CTIS request failed: ${String(lastErr)}`)
   }
 
   return {

@@ -4,6 +4,8 @@ import {
   mapPhase,
   mapStatus,
   mapCtisTrial,
+  buildSourceMeta,
+  parseCountries,
 } from './ctisMapper.js'
 import type { CtisSearchRecord } from './ctisClient.js'
 
@@ -131,6 +133,23 @@ describe('ctis mapper', () => {
     expect(trial!.centers).toEqual([])
     expect(trial!.country).toBe('Germany')
     expect(trial!.status).toBe('recruiting') // from numeric ctStatus fallback
+  })
+
+  it('builds internal source metadata for future AI use', () => {
+    expect(parseCountries(['Germany:3', 'France:1'])).toEqual([
+      'Germany',
+      'France',
+    ])
+    const meta = buildSourceMeta(
+      { ...search, trialCountries: ['Germany:3', 'Poland:2'] },
+      detail
+    )
+    expect(meta.source_id).toBe('2025-000001-11-00')
+    expect(meta.source_url).toContain('euclinicaltrials.eu')
+    expect(meta.source_url).toContain('2025-000001-11-00')
+    expect(meta.sponsor).toBe('Charité Berlin')
+    expect(meta.recruitment_status).toBe('Ongoing, recruiting')
+    expect(meta.countries).toEqual(['Germany', 'Poland'])
   })
 
   it('returns null for a record with no id', () => {

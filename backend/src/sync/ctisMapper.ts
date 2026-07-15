@@ -72,6 +72,13 @@ function parseCountry(trialCountries?: string[]): string {
   return str(first).split(':')[0].trim()
 }
 
+/** All country names from CTIS "Germany:2" style entries. */
+export function parseCountries(trialCountries?: string[]): string[] {
+  return arr(trialCountries)
+    .map((c) => str(c).split(':')[0].trim())
+    .filter(Boolean)
+}
+
 function truncate(text: string, max: number): string {
   return text.length <= max ? text : text.slice(0, max - 1).trimEnd() + '…'
 }
@@ -233,5 +240,31 @@ export function mapCtisTrial(params: {
     contact_name: contact.name,
     contact_email: contact.email,
     contact_phone: contact.phone,
+  }
+}
+
+export interface TrialSourceMeta {
+  source_id: string
+  source_url: string
+  sponsor: string
+  recruitment_status: string
+  countries: string[]
+}
+
+/** Extra CTIS fields stored alongside a trial (internal — not in the API).
+ *  Kept for future AI/RAG features and provenance/observability. */
+export function buildSourceMeta(
+  search: CtisSearchRecord,
+  detail: unknown | null
+): TrialSourceMeta {
+  const id = str(search.ctNumber)
+  return {
+    source_id: id,
+    source_url: id
+      ? `https://euclinicaltrials.eu/ctis-public/#/view/${encodeURIComponent(id)}`
+      : '',
+    sponsor: str(search.sponsor),
+    recruitment_status: str(dig(detail, 'ctStatus')) || str(search.ctStatus),
+    countries: parseCountries(search.trialCountries),
   }
 }
