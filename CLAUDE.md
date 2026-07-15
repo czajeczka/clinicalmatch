@@ -209,16 +209,18 @@ Done vs. deferred as of the current chunks (12/12):
 - **Backend** — full non-AI REST API (users, trials, saved, groups,
   memberships, discussions, replies, notifications), plus an admin surface;
   69 backend tests + an e2e flow.
-- **Real trial data (CTIS)** — a backend-only, production-ready synchronisation
-  service (`backend/src/sync/`) imports real active European trials from the EU
-  Clinical Trials Information System public API into the existing `Trial` model.
-  Paginated, retried, de-duplicated, transactional (a bad fetch never wipes the
-  catalogue), fully env-configurable (`IMPORT_LIMIT`/`IMPORT_DISEASES`/
-  `IMPORT_STATUS`/`IMPORT_BATCH_SIZE`/`IMPORT_RETRY_COUNT`/…). Full + incremental
-  modes; per-run `sync_logs`; richer CTIS fields kept in `trial_sync_meta` for
-  future AI. Admin Panel → Sync tab shows status via `GET /admin/sync`. API
-  endpoints + frontend unchanged; the fictional seed stays for tests/local.
-  See `backend/CLAUDE.md` § Data source.
+- **Real trial data (CTIS)** — a backend-only, comprehensive synchronisation
+  service (`backend/src/sync/`) imports real European trials across **~40
+  disease areas** (data-driven, extend with no code change) into the `Trial`
+  model. Streaming per-page import (bounded memory), paginated, retried,
+  de-duplicated, resumable, transactional with a scoped full-mode sweep for
+  removals (a bad fetch never wipes). Normalised DB (`sponsors` lookup,
+  `trial_countries` junction) + indexes; SQL-filtered, paginated `GET /trials`
+  (disease/country/city/sponsor/phase/status/age/sex) + `GET /trials/facets`.
+  Admin Panel → Sync tab: catalogue/schedule stats + import-all / import-selected
+  / pause / resume / force-full controls, plus a background scheduler
+  (`SYNC_INTERVAL_HOURS`). Fully env-configurable. The fictional seed stays for
+  tests/local. See `backend/CLAUDE.md` § Data source.
 - **Admin role** — two roles (`user`/`admin`); one predefined admin (Oliwia
   Czajka, `u-admin`) seeded. Admin can create/edit/delete trials, support
   groups, and announcements, and moderate any discussion/reply. Enforced by

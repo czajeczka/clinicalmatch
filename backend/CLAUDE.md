@@ -226,6 +226,52 @@ source meta), `ctisClient.test.ts` (retry: transient→retry, 5xx→give up, 4xx
 retry), `importer.test.ts` (full/incremental/pagination/de-dupe/status-filter/
 partial/error against a fake client + in-memory DB).
 
+### Comprehensive platform (all diseases + European coverage)
+
+- **Supported diseases** are data-driven (`sync/diseaseAreas.ts` — ~40 areas
+  across oncology, neurology, cardiology, endocrinology, immunology, respiratory,
+  etc.). `disease` on a trial is now a **free-form string** (no fixed enum), so
+  new areas need **no code change** — add a label to `IMPORT_DISEASES`
+  (env / admin panel) and unknown labels are searched verbatim.
+- **Stored per trial**: country, city, recruiting sites (`centers`), sponsor,
+  phase, recruitment status, therapeutic area, medical condition, intervention,
+  inclusion/exclusion criteria, CTIS id + URL, plus `age_min/age_max`/`gender`
+  for filtering and `countries[]` (all recruiting countries).
+- **Normalisation / indexes**: `sponsors` lookup table (deduped) referenced by
+  `trials.sponsor_id`; `trial_countries` junction for multi-country filtering.
+  Indexes on disease, status, city, country, phase, sponsor_id, and
+  trial_countries(country).
+- **Filtering + pagination**: `GET /trials?query&disease&country&city&sponsor&
+  phase&status&age&sex&limit&offset` — all combine (AND), index-backed SQL, and
+  return `{ items, total, limit, offset }`. `GET /trials/facets` returns the
+  distinct filter options (diseases/countries/cities/sponsors/phases/statuses)
+  that drive the frontend dropdowns dynamically.
+- **Scale strategy**: the importer **streams page-by-page** (one CTIS page =
+  one transaction → bounded memory), paginates each area up to `IMPORT_LIMIT`,
+  retries transient failures, de-dupes by id across areas, and is **resumable**
+  (incremental upserts persist as it goes). **full** mode reconciles removals
+  via a scoped sweep (deletes CTIS trials in the imported diseases not seen this
+  run — never touches other diseases or admin-created trials; never wipes on an
+  empty/failed fetch).
+- **Admin control** (`/admin/sync`, admin-only): `GET` returns last/lastError/
+  recent runs + scheduler state (paused/running/next_run) + catalogue stats
+  (total trials, distinct diseases, distinct countries, supported areas).
+  `POST /run { mode, diseases?, countries? }` starts a background import
+  (import all Europe, or scoped to selected diseases/countries; `mode:full` =
+  force full). `POST /pause` / `POST /resume` toggle the scheduler.
+- **Scheduler**: `sync/scheduler.ts` runs an incremental sync when due
+  (`SYNC_INTERVAL_HOURS`), unless paused/running. Nothing auto-runs until a
+  first run sets `next_run_at`.
+- **New config**: `IMPORT_COUNTRIES` (comma list; empty = all). `IMPORT_LIMIT`
+  is now per-disease-area; `IMPORT_DISEASES` is a comma list of area labels.
+
+**Import the complete European catalogue:** raise `IMPORT_LIMIT` (e.g. into the
+hundreds) and/or widen `IMPORT_DISEASES`; the client already pages the whole
+result set via `nextPage`, and the streaming importer keeps memory bounded. Run
+`node dist/sync/run.js full` (periodic) + `incremental` (frequent, scheduled).
+For very large volumes, run the importer as a dedicated job (host cron / separate
+container) rather than in the API process.
+
 ## How to add an endpoint
 
 1. **Write a failing Supertest test first** in `src/routes/<resource>.test.ts`.
