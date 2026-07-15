@@ -47,8 +47,11 @@ npm run sync:incremental # CTIS incremental — upsert only new/changed trials
 In the production image (no tsx): `node dist/sync/run.js full|incremental`.
 
 Env: copy `.env.example` → `.env`. Vars: `PORT` (3001), `CORS_ORIGIN`
-(`http://localhost:5173`), `NODE_ENV`, and `DB_PATH`
-(default `data/clinicalmatch.sqlite`). Never commit `.env` or the `.sqlite` file.
+(`http://localhost:5173`), `NODE_ENV`, `DB_PATH`
+(default `data/clinicalmatch.sqlite`), plus the CTIS importer settings
+(`CTIS_API_URL`, `CTIS_TIMEOUT_MS`, `IMPORT_LIMIT`, `IMPORT_BATCH_SIZE`,
+`IMPORT_RETRY_COUNT`, `IMPORT_DISEASES`, `IMPORT_STATUS`, `SYNC_INTERVAL_HOURS`
+— see § Data source). Never commit `.env` or the `.sqlite` file.
 
 Tests: per-route Supertest suites plus `src/e2e.test.ts`, a chained golden-path
 flow (create user → save → join → post → reply → edit/delete, with ownership
@@ -130,37 +133,98 @@ the backend** — the frontend still calls the same unchanged `/trials` endpoint
 The fictional `seed` catalogue remains for tests/local dev; production replaces
 it by running the importer.
 
-Pipeline (`src/sync/`), each layer independently testable:
+### Architecture (`src/sync/`, each layer independently testable)
 
-- **`ctisClient.ts`** — thin HTTP client: `search(term,page,size)` (`POST
-/search`) and `retrieve(ctNumber)` (`GET /retrieve/:id`). `AbortController`
-  timeout, throws on non-2xx. `fetch` + base URL are injectable (tests use
-  fixtures — no network). Config: `CTIS_API_URL`, `CTIS_TIMEOUT_MS`.
+- **`ctisClient.ts`** — HTTP client: `search(term,page,size)` (`POST /search`)
+  and `retrieve(ctNumber)` (`GET /retrieve/:id`). Per-request `AbortController`
+  timeout; **bounded retries with linear backoff** on transient failures
+  (network/timeout, 5xx, 429) — 4xx and final failures propagate. `fetch` + base
+  URL + retry knobs are injectable (tests use fixtures / fake fetch — no network).
 - **`ctisMapper.ts`** — pure CTIS→`Trial` mapping. `classifyDisease` limits to
   the five canonical diseases; `mapPhase`/`mapStatus` normalise CTIS's verbose
   phase/status; detail extractors pull eligibility criteria, trial sites
-  (→`centers`, `city`/`country`) and public/scientific contacts. If the detail
-  payload is missing it falls back to search-only fields (age/sex →
-  eligibility). Produces a valid `Trial` (canonical disease, enum status).
-- **`importer.ts`** — `runImport({mode, ...})`: searches CTIS per disease
-  (`CTIS_PER_DISEASE`, default 8), enriches each with detail, maps, then applies
-  in one transaction. **full** = replace catalogue (delete all trials +
-  saved_trials + meta, insert fresh); **incremental** = upsert only trials whose
-  CTIS `lastUpdated` changed (or are new), never deleting. Writes a `sync_logs`
-  row every run. Resilience: a per-trial detail failure degrades to search-only
-  (status `partial`); a search/whole-run failure logs `error` and **leaves the
-  existing catalogue untouched** (never wipes good data on a bad fetch).
-- **`run.ts`** — CLI entry for the npm scripts above.
+  (→`centers`, `city`/`country`) and contacts. Missing detail → search-only
+  fallback (age/sex → eligibility). `buildSourceMeta` produces the internal
+  provenance record (sponsor, source URL/id, countries, raw status).
+- **`importer.ts`** — `runImport({mode, ...})`. See flow + guarantees below.
+- **`run.ts`** — CLI entry for the npm scripts.
+- Admin observability: `getSyncStatus()` → `GET /admin/sync` (admin-only) →
+  `{ last, lastError, recent[] }` for the Admin Panel's Sync tab.
 
-Mapping summary: `ctNumber`→`id`, `ctTitle`→`title`, disease = the canonical
-disease searched, `trialPhase`→`phase`, trial-site address→`city`/`country`,
-`ctStatus`→`status`, eligibility criteria→`inclusion/exclusion_criteria`, trial
-sites→`centers`, sponsor public contact→`contact_*`. The `Trial` shape and every
-API endpoint are unchanged, so the frontend works without modification.
+### Synchronisation flow
 
-Tests: `src/sync/ctisMapper.test.ts` (classification/normalisation/mapping +
-fallback) and `src/sync/importer.test.ts` (full/incremental/partial/error against
-a fake client + in-memory DB).
+Per disease (from `IMPORT_DISEASES`): search CTIS **page by page**
+(`IMPORT_BATCH_SIZE`) until `IMPORT_LIMIT` trials are gathered or pages run out
+→ for each record retrieve its detail (with retries) → map to `Trial` →
+`IMPORT_STATUS` filter → **de-dupe by CTIS id** (across diseases) → collect. Then
+apply all collected trials in **one transaction**, writing a `sync_logs` row
+(mode, status, seen/imported/updated/skipped/failed, `duration_ms`, message).
+
+- **full** — replace the catalogue (delete all trials + saved_trials + meta,
+  then insert). This reconciles trials that disappeared/were removed upstream.
+- **incremental** — upsert only new trials or those whose CTIS `lastUpdated`
+  changed (diffed via `trial_sync_meta`); unchanged → **skipped**; never deletes.
+
+### Guarantees
+
+- **No duplicates** — `id = ctNumber` is the PK; writes are `INSERT … ON
+CONFLICT(id) DO UPDATE`; the run also de-dupes by id before applying.
+- **Correct updates** — changed trials update in place (same id).
+- **Closed/deleted** — status changes flow through the status mapping on every
+  sync; upstream removals are reconciled by the periodic **full** import
+  (incremental intentionally never deletes, to avoid over-pruning a partial fetch).
+- **Failure-safe** — everything applies in a transaction; a failed/empty _fetch_
+  logs `error` and leaves the catalogue untouched; a run where all records were
+  filtered out logs `success`/`partial` and also changes nothing (never wipes).
+- **Retries** — transient CTIS failures retried up to `IMPORT_RETRY_COUNT`.
+
+### Configuration (all env vars, sensible defaults)
+
+| Var                   | Default                                       | Meaning                                |
+| --------------------- | --------------------------------------------- | -------------------------------------- |
+| `CTIS_API_URL`        | `https://euclinicaltrials.eu/ctis-public-api` | CTIS base URL                          |
+| `CTIS_TIMEOUT_MS`     | `20000`                                       | per-request timeout                    |
+| `IMPORT_LIMIT`        | `8`                                           | max trials **per disease**             |
+| `IMPORT_BATCH_SIZE`   | `20`                                          | CTIS search page size                  |
+| `IMPORT_RETRY_COUNT`  | `2`                                           | retries per request                    |
+| `IMPORT_DISEASES`     | _(all 5)_                                     | comma list to restrict diseases        |
+| `IMPORT_STATUS`       | _(all)_                                       | comma list of TrialStatus to keep      |
+| `SYNC_INTERVAL_HOURS` | `24`                                          | cadence hint for a host-scheduled sync |
+
+**Change imported diseases:** set `IMPORT_DISEASES` (e.g.
+`IMPORT_DISEASES="Breast Cancer,Multiple Sclerosis"`) and re-run the importer.
+Adding a _new_ disease also needs a canonical entry in `types.ts` `DISEASES`, a
+matcher in `ctisMapper.classifyDisease`, a query in `importer.DISEASE_QUERIES`,
+and the frontend `DISEASE_COLORS`.
+
+**Import the full European dataset later:** raise `IMPORT_LIMIT` (per disease)
+or drop the per-disease scoping and paginate the whole registry; the client
+already pages via `nextPage`. For thousands of trials also consider: server-side
+disease/keyword filtering in `GET /trials` (currently a small in-memory filter),
+a leaner list projection for the list endpoint, and running the sync as a
+scheduled job (host cron / systemd timer / container, cadence `SYNC_INTERVAL_HOURS`)
+using `incremental` mode.
+
+Mapping summary: `ctNumber`→`id`, `ctTitle`→`title`, disease = canonical disease
+searched, `trialPhase`→`phase`, trial-site address→`city`/`country`,
+`ctStatus`→`status`, eligibility criteria→`inclusion/exclusion_criteria`, sites
+→`centers`, sponsor contact→`contact_*`. Richer CTIS fields (sponsor, source
+URL/id, countries, raw recruitment status) are stored in **`trial_sync_meta`**
+for future AI/RAG use — internal only, so the `Trial` API shape is unchanged.
+
+### Deployment
+
+Production always uses CTIS data. On deploy: `docker compose up -d --build`
+(startup runs `applySchema`, which creates/migrates the sync tables + columns),
+then seed the community/admin (`node dist/db/seed.js`) and run the importer
+(`node dist/sync/run.js full`). The fictional trial seed is **dev/test only**;
+in production the full import replaces it. Refresh later with
+`node dist/sync/run.js incremental` on a schedule.
+
+Tests: `ctisMapper.test.ts` (classification/normalisation/mapping + fallback +
+source meta), `ctisClient.test.ts` (retry: transient→retry, 5xx→give up, 4xx→no
+retry), `importer.test.ts` (full/incremental/pagination/de-dupe/status-filter/
+partial/error against a fake client + in-memory DB).
 
 ## How to add an endpoint
 

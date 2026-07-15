@@ -209,13 +209,16 @@ Done vs. deferred as of the current chunks (12/12):
 - **Backend** — full non-AI REST API (users, trials, saved, groups,
   memberships, discussions, replies, notifications), plus an admin surface;
   69 backend tests + an e2e flow.
-- **Real trial data (CTIS)** — a backend-only synchronisation service
-  (`backend/src/sync/`) imports real active European trials from the EU
-  Clinical Trials Information System public API, maps them into the existing
-  `Trial` model, and stores them in SQLite with sync logs + error handling.
-  Full and incremental modes (`npm run sync` / `sync:incremental`). API
-  endpoints and the frontend are unchanged; the fictional seed stays for
-  tests/local. See `backend/CLAUDE.md` § Data source.
+- **Real trial data (CTIS)** — a backend-only, production-ready synchronisation
+  service (`backend/src/sync/`) imports real active European trials from the EU
+  Clinical Trials Information System public API into the existing `Trial` model.
+  Paginated, retried, de-duplicated, transactional (a bad fetch never wipes the
+  catalogue), fully env-configurable (`IMPORT_LIMIT`/`IMPORT_DISEASES`/
+  `IMPORT_STATUS`/`IMPORT_BATCH_SIZE`/`IMPORT_RETRY_COUNT`/…). Full + incremental
+  modes; per-run `sync_logs`; richer CTIS fields kept in `trial_sync_meta` for
+  future AI. Admin Panel → Sync tab shows status via `GET /admin/sync`. API
+  endpoints + frontend unchanged; the fictional seed stays for tests/local.
+  See `backend/CLAUDE.md` § Data source.
 - **Admin role** — two roles (`user`/`admin`); one predefined admin (Oliwia
   Czajka, `u-admin`) seeded. Admin can create/edit/delete trials, support
   groups, and announcements, and moderate any discussion/reply. Enforced by
