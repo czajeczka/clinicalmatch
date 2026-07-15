@@ -42,6 +42,16 @@ export function DiseasePill({ disease }: { disease: string }) {
   )
 }
 
+/** Neutral pill for phase / study-design metadata. */
+export function PhaseBadge({ phase }: { phase?: string }) {
+  if (!phase) return null
+  return (
+    <span className="border-border bg-surface-muted text-text-muted inline-flex items-center rounded-full border px-2.5 py-1 font-mono text-xs font-medium">
+      {phase}
+    </span>
+  )
+}
+
 /** Small mono tag for discussions. */
 export function Tag({ children }: { children: React.ReactNode }) {
   return (

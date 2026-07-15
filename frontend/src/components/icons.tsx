@@ -86,6 +86,28 @@ export const ShieldIcon = (p: IconProps) => (
     <path d="m9 12 2 2 4-4" />
   </Base>
 )
+export const ShareIcon = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="6" cy="12" r="2.2" />
+    <circle cx="17.5" cy="6" r="2.2" />
+    <circle cx="17.5" cy="18" r="2.2" />
+    <path d="m8 11 7.5-4M8 13l7.5 4" />
+  </Base>
+)
+export const BuildingIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M4 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16" />
+    <path d="M13 9h5a1 1 0 0 1 1 1v11" />
+    <path d="M3 21h18M7 8h2M7 12h2M7 16h2M16 13h1M16 17h1" />
+  </Base>
+)
+export const ExternalLinkIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M14 5h5v5" />
+    <path d="M19 5 10 14" />
+    <path d="M19 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4" />
+  </Base>
+)
 export const CheckIcon = (p: IconProps) => (
   <Base {...p}>
     <path d="m5 12 5 5 9-10" />
