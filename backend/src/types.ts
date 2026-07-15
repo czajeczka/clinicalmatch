@@ -24,7 +24,9 @@ export interface Center {
 export interface Trial {
   id: string
   title: string
-  disease: Disease
+  // Free-form disease-area label (no longer limited to the five canonical
+  // diseases) so the platform can cover all CTIS therapeutic areas.
+  disease: string
   phase: string
   city: string
   country: string
@@ -37,6 +39,16 @@ export interface Trial {
   contact_name: string
   contact_email: string
   contact_phone: string
+  // Extended CTIS fields (present on imported trials).
+  sponsor?: string
+  therapeutic_area?: string
+  medical_condition?: string
+  intervention?: string
+  age_range?: string
+  gender?: string
+  countries?: string[]
+  source_id?: string
+  source_url?: string
 }
 
 export interface SupportGroup {
@@ -77,7 +89,8 @@ export interface User {
   display_name: string
   age?: number
   city?: string
-  interests: Disease[]
+  // Free-form disease-area interests (chosen from the dynamic disease list).
+  interests: string[]
   created_at: string
   email?: string
   role: Role

@@ -17,7 +17,42 @@ CREATE TABLE IF NOT EXISTS trials (
   centers            TEXT NOT NULL, -- json: { name, city, country }[]
   contact_name       TEXT NOT NULL,
   contact_email      TEXT NOT NULL,
-  contact_phone      TEXT NOT NULL
+  contact_phone      TEXT NOT NULL,
+  -- Extended CTIS fields (comprehensive-platform expansion).
+  sponsor_id         INTEGER,       -- FK -> sponsors(id) (normalised, deduped)
+  therapeutic_area   TEXT,
+  medical_condition  TEXT,
+  intervention       TEXT,
+  age_range          TEXT,
+  age_min            INTEGER,       -- parsed from CTIS age groups (for filtering)
+  age_max            INTEGER,
+  gender             TEXT,
+  source_id          TEXT,          -- CTIS ctNumber
+  source_url         TEXT           -- public CTIS trial page
+);
+
+-- Normalised sponsor names (deduped; referenced by trials.sponsor_id).
+CREATE TABLE IF NOT EXISTS sponsors (
+  id   INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE
+);
+
+-- A trial runs in one or more countries (many-to-many); powers country filters
+-- across every recruiting country, not just the lead one on trials.country.
+CREATE TABLE IF NOT EXISTS trial_countries (
+  trial_id TEXT NOT NULL,
+  country  TEXT NOT NULL,
+  PRIMARY KEY (trial_id, country)
+);
+
+-- Single-row scheduler / synchronisation control state.
+CREATE TABLE IF NOT EXISTS sync_state (
+  id             INTEGER PRIMARY KEY CHECK (id = 1),
+  paused         INTEGER NOT NULL DEFAULT 0,
+  running        INTEGER NOT NULL DEFAULT 0,
+  interval_hours INTEGER NOT NULL DEFAULT 24,
+  last_run_at    TEXT,
+  next_run_at    TEXT
 );
 
 CREATE TABLE IF NOT EXISTS support_groups (
@@ -123,6 +158,12 @@ CREATE TABLE IF NOT EXISTS trial_sync_meta (
 
 CREATE INDEX IF NOT EXISTS idx_trials_disease ON trials (disease);
 CREATE INDEX IF NOT EXISTS idx_trials_status ON trials (status);
+CREATE INDEX IF NOT EXISTS idx_trials_city ON trials (city);
+CREATE INDEX IF NOT EXISTS idx_trials_country ON trials (country);
+CREATE INDEX IF NOT EXISTS idx_trials_phase ON trials (phase);
+-- idx_trials_sponsor (on sponsor_id) is created in applySchema AFTER the column
+-- migration, since sponsor_id may not exist on pre-existing trials tables yet.
+CREATE INDEX IF NOT EXISTS idx_trial_countries_country ON trial_countries (country);
 CREATE INDEX IF NOT EXISTS idx_sync_logs_finished ON sync_logs (finished_at DESC);
 CREATE INDEX IF NOT EXISTS idx_discussions_group ON discussions (group_id);
 CREATE INDEX IF NOT EXISTS idx_replies_discussion ON replies (discussion_id);

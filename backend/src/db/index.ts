@@ -53,6 +53,27 @@ export function applySchema(database: DB): void {
   ]) {
     ensureColumn(database, 'trial_sync_meta', col, ddl)
   }
+  // Comprehensive-platform expansion: extended CTIS fields on trials.
+  for (const [col, ddl] of [
+    ['sponsor_id', 'sponsor_id INTEGER'],
+    ['therapeutic_area', 'therapeutic_area TEXT'],
+    ['medical_condition', 'medical_condition TEXT'],
+    ['intervention', 'intervention TEXT'],
+    ['age_range', 'age_range TEXT'],
+    ['age_min', 'age_min INTEGER'],
+    ['age_max', 'age_max INTEGER'],
+    ['gender', 'gender TEXT'],
+    ['source_id', 'source_id TEXT'],
+    ['source_url', 'source_url TEXT'],
+  ]) {
+    ensureColumn(database, 'trials', col, ddl)
+  }
+  // Index on the migrated sponsor_id column (created after ensureColumn).
+  database.exec(
+    'CREATE INDEX IF NOT EXISTS idx_trials_sponsor ON trials (sponsor_id)'
+  )
+  // Seed the single scheduler-state row.
+  database.prepare('INSERT OR IGNORE INTO sync_state (id) VALUES (1)').run()
 }
 
 /** Open a database at `path` with sane pragmas (WAL, foreign keys). */
