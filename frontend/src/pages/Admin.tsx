@@ -14,6 +14,7 @@ import { DiseasePill } from '@/components/Badge'
 import { useAsync } from '@/hooks/useAsync'
 import { api } from '@/mock/mockApi'
 import { useApp } from '@/store/store'
+import { timeAgo } from '@/lib/format'
 import { DISEASES, DISEASE_COLORS, type Disease } from '@/lib/diseases'
 import type { AppNotification, SupportGroup, Trial, TrialStatus } from '@/types'
 
@@ -27,7 +28,7 @@ const STATUSES: TrialStatus[] = [
 const inlineBtn =
   'rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]'
 
-type Tab = 'trials' | 'groups' | 'announcements'
+type Tab = 'trials' | 'groups' | 'announcements' | 'sync'
 
 /**
  * Admin Panel. Rendered only for the admin account (see the guard below and the
@@ -54,7 +55,8 @@ export function Admin() {
           segments={[
             { value: 'trials', label: 'Trials' },
             { value: 'groups', label: 'Groups' },
-            { value: 'announcements', label: 'Announcements' },
+            { value: 'announcements', label: 'News' },
+            { value: 'sync', label: 'Sync' },
           ]}
         />
       </div>
@@ -62,6 +64,7 @@ export function Admin() {
         {tab === 'trials' && <TrialsAdmin />}
         {tab === 'groups' && <GroupsAdmin />}
         {tab === 'announcements' && <AnnouncementsAdmin />}
+        {tab === 'sync' && <SyncAdmin />}
       </div>
     </div>
   )
@@ -648,5 +651,97 @@ function AnnouncementsAdmin() {
         }}
       />
     </div>
+  )
+}
+
+// --------------------------------------------------------------------------
+// Synchronisation status (read-only observability)
+// --------------------------------------------------------------------------
+
+function SyncAdmin() {
+  const { data, loading, error, reload } = useAsync(
+    () => api.getSyncStatus(),
+    []
+  )
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <SectionTitle>CTIS synchronisation</SectionTitle>
+        <Button size="sm" variant="secondary" onClick={reload}>
+          Refresh
+        </Button>
+      </div>
+
+      {loading && <SkeletonList count={1} />}
+      {!loading && error && (
+        <ErrorRetry message="Couldn’t load sync status." onRetry={reload} />
+      )}
+      {!loading && !error && data && !data.last && (
+        <EmptyState
+          title="No synchronisation yet"
+          body="Run the importer to load real CTIS trials (npm run sync, or the deploy step)."
+        />
+      )}
+      {!loading && !error && data?.last && (
+        <>
+          <Card className="space-y-3">
+            <div className="flex items-center justify-between">
+              <SyncStatusPill status={data.last.status} />
+              <span className="text-text-muted font-mono text-xs">
+                {data.last.mode} · {timeAgo(data.last.finished_at)}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <Metric label="Imported" value={data.last.trials_imported} />
+              <Metric label="Updated" value={data.last.trials_updated} />
+              <Metric label="Skipped" value={data.last.trials_skipped} />
+              <Metric label="Failed" value={data.last.trials_failed} />
+              <Metric label="Seen" value={data.last.trials_seen} />
+              <Metric
+                label="Duration"
+                value={`${(data.last.duration_ms / 1000).toFixed(1)}s`}
+              />
+            </div>
+            {data.last.message && (
+              <p className="text-text-muted text-xs">{data.last.message}</p>
+            )}
+          </Card>
+          {data.lastError && (
+            <Card className="border-danger/50">
+              <p className="text-danger text-sm font-medium">Last error</p>
+              <p className="text-text-muted mt-1 text-xs">
+                {timeAgo(data.lastError.finished_at)} — {data.lastError.message}
+              </p>
+            </Card>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function Metric({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div>
+      <p className="font-display text-text text-lg font-semibold">{value}</p>
+      <p className="text-text-muted font-mono text-xs uppercase">{label}</p>
+    </div>
+  )
+}
+
+function SyncStatusPill({ status }: { status: string }) {
+  const tone =
+    status === 'success'
+      ? 'bg-success/12 text-success'
+      : status === 'error'
+        ? 'bg-danger/12 text-danger'
+        : 'bg-warning/12 text-warning'
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-1 font-mono text-xs font-medium ${tone}`}
+    >
+      {status}
+    </span>
   )
 }

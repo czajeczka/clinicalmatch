@@ -8,6 +8,7 @@ import type {
   Reply,
   SelfCheckInput,
   SupportGroup,
+  SyncStatus,
   Trial,
   TrialAnswer,
   TrialSummary,
@@ -333,6 +334,9 @@ export const api = {
   },
   deleteNotification(id: string) {
     return apiClient.delete<void>(`/notifications/${encodeURIComponent(id)}`)
+  },
+  getSyncStatus() {
+    return apiClient.get<SyncStatus>('/admin/sync')
   },
   updateReply(id: string, content: string) {
     return apiClient.patch<Reply>(`/replies/${encodeURIComponent(id)}`, {

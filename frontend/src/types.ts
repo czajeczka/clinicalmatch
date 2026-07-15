@@ -92,6 +92,28 @@ export interface AppNotification {
   read: boolean
 }
 
+// CTIS synchronisation observability (admin panel only; not user-facing data).
+export interface SyncLog {
+  id: number
+  mode: string
+  status: 'success' | 'partial' | 'error'
+  trials_seen: number
+  trials_imported: number
+  trials_updated: number
+  trials_skipped: number
+  trials_failed: number
+  duration_ms: number
+  message: string | null
+  started_at: string
+  finished_at: string
+}
+
+export interface SyncStatus {
+  last: SyncLog | null
+  lastError: SyncLog | null
+  recent: SyncLog[]
+}
+
 // ---- AI feature outputs (validated JSON in the real backend) ----
 
 export type Verdict = 'likely' | 'possibly' | 'unlikely'

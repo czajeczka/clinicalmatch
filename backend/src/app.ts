@@ -14,6 +14,7 @@ import { membershipsRouter } from './routes/memberships.js'
 import { discussionsRouter } from './routes/discussions.js'
 import { repliesRouter } from './routes/replies.js'
 import { notificationsRouter } from './routes/notifications.js'
+import { syncRouter } from './routes/sync.js'
 
 /**
  * Builds the Express application (no `listen` — so tests can import it).
@@ -49,6 +50,7 @@ export function createApp() {
   // Mounted at root: owns /discussions/:id/replies and /replies/:id.
   app.use(repliesRouter)
   app.use('/notifications', notificationsRouter)
+  app.use('/admin/sync', syncRouter)
 
   // 404 for anything unmatched.
   app.use((_req: Request, res: Response) => {
