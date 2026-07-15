@@ -48,14 +48,18 @@ The app now calls the real backend for all **non-AI** data:
 - Onboarding `POST /users` (fire-and-forget) persists the device identity so the
   backend can resolve `author_name`; Profile interest edits `PATCH /users/:id`.
 
-### Still mocked — deferred (do NOT wire to the backend here)
+### AI features — live vs. still mocked
 
-The four AI features stay implemented in `src/mock/mockApi.ts`:
-`summariseTrial`, `explainCriteria`, `selfCheck`, `enhancePost`
-→ `TODO: LLM API (seminar 6)`; `askTrial` (grounded Q&A) also
-→ `TODO: RAG (later seminar)`. They keep the informational-only framing, the
-retry-once-then-fallback behaviour, and the `FAILTEST` escape hatch for demoing
-errors. Community posting works fully without the AI enhancement.
+- **Live (seminar 6):** `selfCheck` (eligibility self-check) now calls the real
+  backend — `POST /ai/eligibility-check` via `apiClient` — which routes through
+  the shared LLM abstraction layer, validates the JSON, and returns a calm 502
+  fallback on failure. The UI (Assistant → SelfCheck) is unchanged.
+- **Still mocked — deferred (do NOT wire to the backend here):**
+  `summariseTrial`, `explainCriteria`, `enhancePost` → `TODO: LLM API
+  (seminar 6)`; `askTrial` (grounded Q&A) also → `TODO: RAG (later seminar)`.
+  They keep the informational-only framing, the retry-once-then-fallback
+  behaviour, and the `FAILTEST` escape hatch for demoing errors. Community
+  posting works fully without the AI enhancement.
 
 ## Admin role
 

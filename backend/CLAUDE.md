@@ -20,11 +20,16 @@ it; there is no login.
 - **Tests:** Vitest + Supertest (HTTP-level).
 - **Lint/format:** oxlint + Prettier.
 
-**Deferred — do NOT implement in the backend chunks** (each has its own later
-seminar): the four **AI/LLM** features (seminar 6), **RAG**, **MCP**, the
-**n8n** workflow, and the **autonomous agent**. Leave `TODO: <topic> (seminar)`
-notes where a deferred feature would connect (e.g. `POST /notifications` is the
-future n8n log target). Ordinary integrations (email, etc.) are in scope.
+**AI/LLM features (seminar 6) — in progress.** They go through the shared LLM
+abstraction layer (`src/ai/llm.ts`) — see § AI / LLM layer. **Eligibility
+self-check** is built (`POST /ai/eligibility-check`); plain-language criteria,
+trial summary, and post enhancement follow (still mocked on the client).
+
+**Deferred — do NOT implement yet** (each has its own later seminar): **RAG**,
+**MCP**, the **n8n** workflow, and the **autonomous agent**. Leave
+`TODO: <topic> (seminar)` notes where a deferred feature would connect (e.g.
+`POST /notifications` is the future n8n log target). Ordinary integrations
+(email, etc.) are in scope.
 
 ## How to run and test
 
@@ -85,6 +90,36 @@ and error-shape assertions). Tests run against an in-memory DB (see
 - **JSON-in-TEXT:** SQLite stores array/object fields (criteria, centers, tags,
   interests) as JSON strings; the db serialise helper (chunk 3) parses them back
   to arrays so responses match the frontend types exactly.
+
+## AI / LLM layer
+
+All AI smart features (seminar 6+) go through the shared abstraction in
+`src/ai/llm.ts` — **the only file allowed to import the OpenAI SDK**. Feature
+routes call the `llm` singleton (or a client from `createLlmClient`); they never
+touch the SDK. New modalities (e.g. embeddings for RAG) are added here.
+
+- **`completeJSON<T>({ system, user, schema, schemaName, temperature?,
+  maxTokens? })`** — Chat Completions with **Structured Outputs**
+  (`response_format: json_schema`, strict). The Zod `schema` drives the request
+  JSON schema **and** validates the response. Returns the typed, validated
+  object.
+- **`complete({ system, user, … })`** — plain-text completion.
+- **Failure policy** (the brief's "safety is a feature"): retry **once** on a
+  transient error (timeout / 5xx / 429) or malformed/invalid output, then throw
+  **`LlmError`**. A blank `OPENAI_API_KEY` throws `LlmError` immediately (no
+  network) so the app degrades gracefully when AI is unconfigured. The SDK's own
+  retries are disabled (`maxRetries: 0`) so this single-retry is authoritative.
+- **Route helper** `src/lib/aiResponse.ts` → `sendAiError(res, err)`: maps
+  `LlmError` to a calm **502** (`AI_UNAVAILABLE_MESSAGE`); rethrows anything else
+  to the generic 500 handler. Input validation stays **400** via `validateBody`.
+- **Config** (`src/config.ts`, all optional with defaults): `OPENAI_API_KEY`
+  (blank = AI off), `OPENAI_BASE_URL` (`https://api.openai.com/v1`),
+  `OPENAI_MODEL` (`gpt-4o-mini`), `OPENAI_TEMPERATURE` (`0.2`),
+  `OPENAI_MAX_TOKENS` (`800`), `OPENAI_EMBEDDING_MODEL`
+  (`text-embedding-3-small`, for RAG).
+- **Testing:** unit-test the layer with an injected fake `fetchImpl`
+  (`createLlmClient({ apiKey, fetchImpl })`) — no network; mock the whole layer
+  in route tests via `vi.mock('../ai/llm.js')`.
 
 ## Database schema
 
@@ -367,3 +402,13 @@ summary? }`; `content` required non-empty (400 otherwise); 404 if the group
   - `PATCH /notifications/:id` — `{ read }`; marks read/unread (open to any
     user); 404 if unknown.
   - `DELETE /notifications/:id` — **admin**; removes an announcement; 204/404.
+- **AI smart features** _(seminar 6)_ — `src/routes/ai.ts`, mounted at `/ai`.
+  Every route goes through the LLM abstraction layer (§ AI / LLM layer), never
+  the OpenAI SDK directly; validates the model's JSON; and on a final AI failure
+  returns **502** `{ error }` (the calm `AI_UNAVAILABLE_MESSAGE`) so the client
+  degrades gracefully. Responses are informational only.
+  - `POST /ai/eligibility-check` — public (identity optional; result not
+    stored). Body `{ trial_id, age (1–129), gender, condition, treatment? }`;
+    400 on invalid input, 404 if the trial is unknown. Returns
+    `EligibilityResult` `{ verdict: 'likely'|'possibly'|'unlikely', headline,
+    matches[], gaps[], note }` (Chat Completions, Structured Outputs).

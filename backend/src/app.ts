@@ -15,6 +15,7 @@ import { discussionsRouter } from './routes/discussions.js'
 import { repliesRouter } from './routes/replies.js'
 import { notificationsRouter } from './routes/notifications.js'
 import { syncRouter } from './routes/sync.js'
+import { aiRouter } from './routes/ai.js'
 
 /**
  * Builds the Express application (no `listen` — so tests can import it).
@@ -26,7 +27,9 @@ import { syncRouter } from './routes/sync.js'
  *   TODO: autonomous agent (later seminar) — a Telegram agent reusing the tools.
  *   TODO: RAG (later seminar) — grounded "ask about this trial".
  *   TODO: n8n workflow (later seminar) — see the POST /notifications log target.
- *   TODO: LLM API (seminar 6) — the four AI features (kept mocked on the client).
+ *   TODO: LLM API (seminar 6) — the remaining three AI features (plain-language
+ *     criteria, trial summary, post enhancement) are still mocked on the client;
+ *     eligibility self-check is live via /ai (see routes/ai.ts + ai/llm.ts).
  */
 export function createApp() {
   const app = express()
@@ -51,6 +54,8 @@ export function createApp() {
   app.use(repliesRouter)
   app.use('/notifications', notificationsRouter)
   app.use('/admin/sync', syncRouter)
+  // AI smart features (seminar 6) — go through the shared LLM abstraction layer.
+  app.use('/ai', aiRouter)
 
   // 404 for anything unmatched.
   app.use((_req: Request, res: Response) => {

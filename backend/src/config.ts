@@ -62,6 +62,30 @@ const schema = z.object({
     emptyToUndefined,
     z.coerce.number().int().positive().default(24)
   ),
+  // OpenAI / LLM provider — powers the AI smart features through the shared
+  // abstraction layer (src/ai/llm.ts). When OPENAI_API_KEY is blank the AI
+  // endpoints return a calm fallback instead of crashing (see llm.ts).
+  OPENAI_API_KEY: z.preprocess(emptyToUndefined, z.string().default('')),
+  OPENAI_BASE_URL: z.preprocess(
+    emptyToUndefined,
+    z.string().default('https://api.openai.com/v1')
+  ),
+  OPENAI_MODEL: z.preprocess(
+    emptyToUndefined,
+    z.string().default('gpt-4o-mini')
+  ),
+  OPENAI_TEMPERATURE: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().min(0).max(2).default(0.2)
+  ),
+  OPENAI_MAX_TOKENS: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().positive().default(800)
+  ),
+  OPENAI_EMBEDDING_MODEL: z.preprocess(
+    emptyToUndefined,
+    z.string().default('text-embedding-3-small')
+  ),
 })
 
 export type Config = z.infer<typeof schema>

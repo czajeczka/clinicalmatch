@@ -104,3 +104,16 @@ export interface AppNotification {
   created_at: string
   read: boolean
 }
+
+// ---- AI feature outputs (validated JSON produced by the LLM layer) ----
+// Mirrors the frontend `EligibilityResult` so the API and UI stay in lockstep.
+
+export type Verdict = 'likely' | 'possibly' | 'unlikely'
+
+export interface EligibilityResult {
+  verdict: Verdict
+  headline: string
+  matches: string[]
+  gaps: string[]
+  note: string
+}

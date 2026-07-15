@@ -75,84 +75,6 @@ export function filterTrials(
   })
 }
 
-/**
- * Informational eligibility estimate (MOCKED — TODO: LLM API (seminar 6)).
- * Mirrors the real prompt's rule: default to "possibly" when key information
- * is missing, never guess. Deterministic so the demo/tests are stable.
- * Exported for tests.
- */
-export function computeVerdict(
-  trial: Trial,
-  input: SelfCheckInput
-): EligibilityResult {
-  const matches: string[] = []
-  const gaps: string[] = []
-
-  const ageRule = trial.inclusion_criteria.find((c) => /aged/i.test(c))
-  const range = ageRule?.match(/(\d{2})\s*[–-]\s*(\d{2})/)
-  let ageOk: boolean | null = null
-  if (range) {
-    const min = Number(range[1])
-    const max = Number(range[2])
-    ageOk = input.age >= min && input.age <= max
-    if (ageOk) matches.push(`Your age (${input.age}) is within ${min}–${max}.`)
-    else
-      gaps.push(
-        `This study asks for ages ${min}–${max}; you entered ${input.age}.`
-      )
-  } else if (ageRule) {
-    matches.push('The study is open to adults, which appears to include you.')
-  } else {
-    gaps.push('No clear age range was found to compare against.')
-  }
-
-  const condition = input.condition.trim().toLowerCase()
-  const diseaseWords = trial.disease.toLowerCase().split(/\s+/)
-  const conditionMatches =
-    condition.length > 0 &&
-    diseaseWords.some((w) => w.length > 3 && condition.includes(w))
-  if (conditionMatches) {
-    matches.push(`Your condition seems related to ${trial.disease}.`)
-  } else if (condition.length > 0) {
-    gaps.push(
-      `We couldn't clearly match "${input.condition}" to this ${trial.disease} study.`
-    )
-  }
-
-  const closed = trial.status === 'closed' || trial.status === 'completed'
-  if (closed) {
-    gaps.push('This study is not currently recruiting.')
-  }
-
-  let verdict: EligibilityResult['verdict']
-  if (
-    ageOk === false ||
-    (condition.length > 0 && !conditionMatches) ||
-    closed
-  ) {
-    verdict = 'unlikely'
-  } else if (ageOk === true && conditionMatches && gaps.length === 0) {
-    verdict = 'likely'
-  } else {
-    verdict = 'possibly'
-  }
-
-  const headline =
-    verdict === 'likely'
-      ? 'You appear to meet the main criteria we could check.'
-      : verdict === 'unlikely'
-        ? 'Based on what you shared, this study may not be a match.'
-        : 'You may be a match — some details need confirming.'
-
-  return {
-    verdict,
-    headline,
-    matches,
-    gaps,
-    note: 'Informational only — not medical advice. Final eligibility is decided by the trial investigators.',
-  }
-}
-
 function mockTrial(trialId: string): Trial {
   const trial = MOCK_TRIALS.find((t) => t.id === trialId)
   if (!trial) throw new Error(`Unknown trial: ${trialId}`)
@@ -425,11 +347,11 @@ export const api = {
     }
   },
 
-  async selfCheck(input: SelfCheckInput): Promise<EligibilityResult> {
-    const trial = mockTrial(input.trial_id)
-    await delay(null, 800)
-    maybeFail(input.condition + ' ' + (input.treatment ?? ''))
-    return computeVerdict(trial, input)
+  // Eligibility self-check — REAL (seminar 6). Goes through the backend's LLM
+  // abstraction layer (POST /ai/eligibility-check); validated JSON, retry +
+  // calm fallback handled by the backend and useAiAction. Informational only.
+  selfCheck(input: SelfCheckInput): Promise<EligibilityResult> {
+    return apiClient.post<EligibilityResult>('/ai/eligibility-check', input)
   },
 
   async askTrial(trialId: string, question: string): Promise<TrialAnswer> {
