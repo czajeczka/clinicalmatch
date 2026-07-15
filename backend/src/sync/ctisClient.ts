@@ -17,6 +17,7 @@ export interface CtisSearchRecord {
   sponsor?: string
   trialPhase?: string
   primaryEndPoint?: string
+  product?: string
   ageGroup?: string
   gender?: string
   totalNumberEnrolled?: string

@@ -176,10 +176,7 @@ function basicEligibility(search: CtisSearchRecord): string[] {
   return out
 }
 
-function composeDescription(
-  search: CtisSearchRecord,
-  disease: Disease
-): string {
+function composeDescription(search: CtisSearchRecord, disease: string): string {
   const parts: string[] = []
   const cond = str(search.conditions)
   parts.push(
@@ -204,7 +201,7 @@ function composeDescription(
 export function mapCtisTrial(params: {
   search: CtisSearchRecord
   detail: unknown | null
-  disease: Disease
+  disease: string
 }): Trial | null {
   const { search, detail, disease } = params
   const id = str(search.ctNumber)
@@ -222,6 +219,9 @@ export function mapCtisTrial(params: {
   const contact = detail
     ? extractContact(detail)
     : { name: '', email: '', phone: '' }
+  const therapeutic = arr(search.therapeuticAreas)
+    .map((t) => str(t))
+    .filter((t) => t && t.toLowerCase() !== 'not possible to specify')[0]
 
   return {
     id,
@@ -240,7 +240,40 @@ export function mapCtisTrial(params: {
     contact_name: contact.name,
     contact_email: contact.email,
     contact_phone: contact.phone,
+    sponsor: str(search.sponsor),
+    therapeutic_area: therapeutic || disease,
+    medical_condition: str(search.conditions),
+    intervention: str(search.product),
+    age_range: str(search.ageGroup),
+    gender: str(search.gender),
+    countries: parseCountries(search.trialCountries),
+    source_id: id,
+    source_url: `https://euclinicaltrials.eu/ctis-public/#/view/${encodeURIComponent(id)}`,
   }
+}
+
+/** Parse a CTIS age-group string like "18-64 years, 65+ years" into a numeric
+ *  [min, max] range for filtering (max 150 for open-ended "65+"). */
+export function parseAgeRange(ageGroup?: string): {
+  min: number | null
+  max: number | null
+} {
+  const s = str(ageGroup)
+  if (!s) return { min: null, max: null }
+  let min: number | null = null
+  let max: number | null = null
+  for (const m of s.matchAll(/(\d{1,3})\s*-\s*(\d{1,3})/g)) {
+    const lo = Number(m[1])
+    const hi = Number(m[2])
+    min = min === null ? lo : Math.min(min, lo)
+    max = max === null ? hi : Math.max(max, hi)
+  }
+  for (const m of s.matchAll(/(\d{1,3})\s*\+/g)) {
+    const lo = Number(m[1])
+    min = min === null ? lo : Math.min(min, lo)
+    max = 150
+  }
+  return { min, max }
 }
 
 export interface TrialSourceMeta {
