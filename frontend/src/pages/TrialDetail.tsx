@@ -30,6 +30,7 @@ import { useOnline } from '@/hooks/useOnline'
 import { api } from '@/mock/mockApi'
 import { useApp } from '@/store/store'
 import { shareTrial } from '@/lib/share'
+import { recordRecentlyViewed } from '@/hooks/useRecentlyViewed'
 import type { Trial } from '@/types'
 
 export function TrialDetail() {
@@ -55,6 +56,11 @@ export function TrialDetail() {
     setQuestion('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  // Track for the dashboard's "Continue browsing" (client-only, localStorage).
+  useEffect(() => {
+    if (trial) recordRecentlyViewed(trial)
+  }, [trial])
 
   if (loading) {
     return (

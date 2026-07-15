@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Header } from '@/layout/Header'
 import { Input, Select } from '@/components/Field'
 import { Button } from '@/components/Button'
@@ -50,8 +50,20 @@ const EMPTY: Filters = {
 
 export function Trials() {
   const navigate = useNavigate()
-  const [query, setQuery] = useState('')
-  const [filters, setFilters] = useState<Filters>(EMPTY)
+  const [params] = useSearchParams()
+  // Initialise from URL query params so dashboard shortcuts / shared links can
+  // deep-link into a pre-filtered search (frontend-only; no API change).
+  const [query, setQuery] = useState(() => params.get('query') ?? '')
+  const [filters, setFilters] = useState<Filters>(() => ({
+    disease: params.get('disease') ?? '',
+    country: params.get('country') ?? '',
+    city: params.get('city') ?? '',
+    sponsor: params.get('sponsor') ?? '',
+    phase: params.get('phase') ?? '',
+    status: params.get('status') ?? '',
+    sex: params.get('sex') ?? '',
+    age: params.get('age') ?? '',
+  }))
   const [offset, setOffset] = useState(0)
   const debouncedQuery = useDebounced(query, 300)
 
